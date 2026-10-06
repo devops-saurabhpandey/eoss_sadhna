@@ -82,7 +82,7 @@ function Login({ onLogin }) {
   </div>;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
 
 function apiFetch(path, auth, options = {}) {
   return fetch(API_BASE + path, {
@@ -154,7 +154,7 @@ function Workspace({ auth, onLogout }) {
       </header>
       {taskError && <div className="api-error">{taskError}</div>}
       {active === "dashboard" && <Dashboard tasks={tasks} setActive={setActive} loading={taskLoading} />}
-      {active === "tasks" && <Tasks tasks={filteredTasks} loading={taskLoading} />}
+      {active === "tasks" && <Tasks tasks={filteredTasks} loading={taskLoading} auth={auth} onChanged={changed => setTasks(prev => changed.__deleted ? prev.filter(t => t._id !== changed._id) : prev.map(t => t._id === changed._id ? changed : t))} />}
       {active === "reports" && <Reports tasks={tasks} />}
       {active === "team" && <Team />}
       {active === "settings" && <Settings />}
@@ -173,8 +173,38 @@ function TaskRow({ task }) {
   return <div className="task-row"><div><b>{task.title}</b><small>{priority} priority</small></div><span className={"status " + task.status}>{status}</span></div>;
 }
 
-function Tasks({ tasks, loading }) {
-  return <section className="content"><div className="panel"><div className="panel-head"><h3>Task Management</h3><span>{tasks.length} items</span></div>{loading ? <div className="empty">Loading tasks...</div> : tasks.length ? tasks.map(t => <TaskRow key={t._id} task={t} />) : <div className="empty">No tasks yet. Use + New Task to create one.</div>}</div></section>;
+function Tasks({ tasks, loading, auth, onChanged }) {
+  const updateTask = async (id, updates) => {
+    try {
+      const updated = await apiFetch("/api/tasks/" + id, auth, { method: "PATCH", body: JSON.stringify(updates) });
+      onChanged(updated);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const deleteTask = async (id) => {
+    if (!window.confirm("Delete this task?")) return;
+    try {
+      await apiFetch("/api/tasks/" + id, auth, { method: "DELETE" });
+      onChanged({ _id: id, __deleted: true });
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  return <section className="content"><div className="panel"><div className="panel-head"><h3>Task Management</h3><span>{tasks.length} items</span></div>{loading ? <div className="empty">Loading tasks...</div> : tasks.length ? tasks.map(t =>
+    <div className="task-row" key={t._id}>
+      <div><b>{t.title}</b><small>{t.description || "No description"} · {t.priority} priority</small></div>
+      <select value={t.status} onChange={e => updateTask(t._id, { status: e.target.value })}>
+        <option value="pending">Pending</option><option value="in-progress">In Progress</option><option value="completed">Completed</option>
+      </select>
+      <select value={t.priority} onChange={e => updateTask(t._id, { priority: e.target.value })}>
+        <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>
+      </select>
+      <button className="logout" onClick={() => deleteTask(t._id)}>Delete</button>
+    </div>
+  ) : <div className="empty">No tasks yet. Use + New Task to create one.</div>}</div></section>;
 }
 
 function Reports({ tasks }) {
