@@ -236,9 +236,27 @@ function Tasks({ tasks, loading, auth, onChanged }) {
 }
 
 function Reports({ tasks }) {
-  const completed = tasks.filter(t=>t.status==="completed").length;
-  return <section className="content"><div className="stats"><StatCard label="Operational Tasks" value={tasks.length} note="Live API dataset" /><StatCard label="High Priority" value={tasks.filter(t=>t.priority==="high").length} note="Needs attention" /><StatCard label="Completion Rate" value={Math.round(completed / Math.max(tasks.length,1) * 100) + "%"} note="Task completion" /></div><div className="panel"><div className="panel-head"><h3>Management Report</h3><span>Live task data</span></div><p className="muted">Reports are currently calculated from the authenticated user's live task records.</p></div></section>;
+  const total = tasks.length;
+  const completed = tasks.filter(t => t.status === "completed").length;
+  const inProgress = tasks.filter(t => t.status === "in-progress").length;
+  const pending = tasks.filter(t => t.status === "pending").length;
+  const overdue = tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== "completed").length;
+  const high = tasks.filter(t => t.priority === "high").length;
+  const completion = total ? Math.round((completed / total) * 100) : 0;
+
+  return <section className="content"><div className="panel">
+    <div className="panel-head"><h3>Operations MIS Report</h3><span>{total} total tasks</span></div>
+    <div className="stats">
+      <StatCard label="Total Tasks" value={total} note="Current workspace" />
+      <StatCard label="Completed" value={completed} note={completion + "% completion"} />
+      <StatCard label="In Progress" value={inProgress} note="Active work" />
+      <StatCard label="Pending" value={pending} note="Waiting to start" />
+    </div>
+    <div className="grid-two"><div className="panel"><div className="panel-head"><h3>Risk & Priority</h3></div><p><b>{overdue}</b> overdue tasks</p><p><b>{high}</b> high-priority tasks</p></div>
+    <div className="panel"><div className="panel-head"><h3>Completion Rate</h3></div><div style={{fontSize:"34px",fontWeight:800}}>{completion}%</div><small className="muted">Completed / total tasks</small></div></div>
+  </div></section>;
 }
+
 function Team({ auth, team, setTeam }) {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
