@@ -248,7 +248,10 @@ function RTOOperations({ auth }) {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
-  const [form, setForm] = useState({ vehicleNo: "", branch: "", registrationStatus: "Pending Registration", transactionStatus: "Pending" });
+  const [editingId, setEditingId] = useState(null);
+  const emptyForm = { vehicleNo: "", branch: "", registrationStatus: "Pending Registration", transactionStatus: "Pending" };
+  const [form, setForm] = useState(emptyForm);
+  const canManage = ["admin", "manager"].includes(auth.user?.role);
 
   const loadRecords = async () => {
     setLoading(true);
@@ -263,14 +266,27 @@ function RTOOperations({ auth }) {
     e.preventDefault();
     if (!form.vehicleNo.trim() || !form.branch.trim()) return;
     try {
-      const record = await apiFetch("/api/rto", auth, {
-        method: "POST",
+      const url = editingId ? "/api/rto/" + editingId : "/api/rto";
+      const record = await apiFetch(url, auth, {
+        method: editingId ? "PATCH" : "POST",
         body: JSON.stringify(form)
       });
-      setRecords(prev => [record, ...prev]);
-      setForm({ vehicleNo: "", branch: "", registrationStatus: "Pending Registration", transactionStatus: "Pending" });
-      setMessage("RTO record saved.");
+      setRecords(prev => editingId ? prev.map(r => r._id === editingId ? record : r) : [record, ...prev]);
+      setForm(emptyForm);
+      setEditingId(null);
+      setMessage(editingId ? "RTO record updated." : "RTO record saved.");
     } catch (error) { setMessage(error.message); }
+  };
+
+  const edit = (record) => {
+    setEditingId(record._id);
+    setForm({
+      vehicleNo: record.vehicleNo,
+      branch: record.branch,
+      registrationStatus: record.registrationStatus,
+      transactionStatus: record.transactionStatus
+    });
+    setMessage("");
   };
 
   const remove = async (id) => {
@@ -278,6 +294,7 @@ function RTOOperations({ auth }) {
     try {
       await apiFetch("/api/rto/" + id, auth, { method: "DELETE" });
       setRecords(prev => prev.filter(r => r._id !== id));
+      if (editingId === id) { setEditingId(null); setForm(emptyForm); }
     } catch (error) { setMessage(error.message); }
   };
 
@@ -288,24 +305,24 @@ function RTOOperations({ auth }) {
   return <section className="content">
     <div className="hero"><div><p className="eyebrow">KTL RTO OPERATIONS</p><h2>Vehicle Registration & RTO Work Tracking</h2><p>Branch-wise registration, RC status and transaction progress.</p></div></div>
     <div className="stats">
-      <StatCard label="Total Records" value={records.length} note="MongoDB records" />
+      <StatCard label="Total Records" value={records.length} note={canManage ? "All department records" : "My records"} />
       <StatCard label="Pending Registration" value={pending} note="Needs action" />
       <StatCard label="Completed" value={completed} note="Registration completed" />
       <StatCard label="Transactions Done" value={transactions} note="Transaction status" />
     </div>
     <div className="grid-two">
-      <div className="panel"><div className="panel-head"><h3>Add RTO Record</h3><span>{auth.user?.role}</span></div>
+      <div className="panel"><div className="panel-head"><h3>{editingId ? "Edit RTO Record" : "Add RTO Record"}</h3><span>{auth.user?.role}</span></div>
         <form onSubmit={save}>
           <label>Vehicle Number<input required value={form.vehicleNo} onChange={e=>setForm({...form,vehicleNo:e.target.value.toUpperCase()})} placeholder="UP32 AB 1234" /></label>
           <label>Branch<input required value={form.branch} onChange={e=>setForm({...form,branch:e.target.value})} placeholder="Branch name" /></label>
           <label>Registration Status<select value={form.registrationStatus} onChange={e=>setForm({...form,registrationStatus:e.target.value})}><option>Pending Registration</option><option>In Process</option><option>Completed</option></select></label>
           <label>Transaction Status<select value={form.transactionStatus} onChange={e=>setForm({...form,transactionStatus:e.target.value})}><option>Pending</option><option>Completed</option></select></label>
-          <button className="primary">Save RTO Record</button>
+          <div className="button-row"><button className="primary">{editingId ? "Update RTO Record" : "Save RTO Record"}</button>{editingId && <button type="button" className="logout" onClick={()=>{setEditingId(null);setForm(emptyForm)}}>Cancel</button>}</div>
         </form>
         {message && <div className="login-message">{message}</div>}
       </div>
       <div className="panel"><div className="panel-head"><h3>Recent RTO Records</h3><span>{records.length}</span></div>
-        {loading ? <div className="empty">Loading RTO records...</div> : records.length ? records.slice(0,12).map(r=><div className="task-row" key={r._id}><div><b>{r.vehicleNo}</b><small>{r.branch} · {r.registrationStatus} · Transaction: {r.transactionStatus}</small></div><button className="logout" onClick={()=>remove(r._id)}>Delete</button></div>) : <div className="empty">No RTO records yet.</div>}
+        {loading ? <div className="empty">Loading RTO records...</div> : records.length ? records.slice(0,12).map(r=><div className="task-row" key={r._id}><div><b>{r.vehicleNo}</b><small>{r.branch} · {r.registrationStatus} · Transaction: {r.transactionStatus}</small></div><div className="button-row"><button className="logout" onClick={()=>edit(r)}>Edit</button><button className="logout" onClick={()=>remove(r._id)}>Delete</button></div></div>) : <div className="empty">No RTO records yet.</div>}
       </div>
     </div>
   </section>;
