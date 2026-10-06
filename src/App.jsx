@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -82,21 +82,63 @@ function Login({ onLogin }) {
   </div>;
 }
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
+function apiFetch(path, auth, options = {}) {
+  return fetch(API_BASE + path, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer " + auth.token,
+      ...(options.headers || {})
+    }
+  }).then(async response => {
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.message || "API request failed");
+    return data;
+  });
+}
+
 function Workspace({ auth, onLogout }) {
   const [active, setActive] = useState("dashboard");
-  const [tasks, setTasks] = useState(initialTasks);
+  const [tasks, setTasks] = useState([]);
   const [query, setQuery] = useState("");
+  const [taskLoading, setTaskLoading] = useState(true);
+  const [taskError, setTaskError] = useState("");
+
+  const loadTasks = async () => {
+    setTaskLoading(true);
+    setTaskError("");
+    try {
+      const data = await apiFetch("/api/tasks", auth);
+      setTasks(data);
+    } catch (error) {
+      setTaskError(error.message);
+    } finally {
+      setTaskLoading(false);
+    }
+  };
+
+  useEffect(() => { loadTasks(); }, []);
 
   const filteredTasks = useMemo(
-    () => tasks.filter(t => (t.title + t.owner + t.status).toLowerCase().includes(query.toLowerCase())),
+    () => tasks.filter(t => (t.title + t.description + t.status + t.priority).toLowerCase().includes(query.toLowerCase())),
     [tasks, query]
   );
 
-  const addTask = () => {
+  const addTask = async () => {
     const title = window.prompt("New task name");
     if (!title?.trim()) return;
-    setTasks(prev => [{ id: Date.now(), title: title.trim(), owner: "Operations", status: "Pending", priority: "Medium" }, ...prev]);
-    setActive("tasks");
+    try {
+      const task = await apiFetch("/api/tasks", auth, {
+        method: "POST",
+        body: JSON.stringify({ title: title.trim(), priority: "medium" })
+      });
+      setTasks(prev => [task, ...prev]);
+      setActive("tasks");
+    } catch (error) {
+      setTaskError(error.message);
+    }
   };
 
   return <div className="app-shell">
@@ -110,8 +152,9 @@ function Workspace({ auth, onLogout }) {
         <div><span className="eyebrow">SHIVASHA EOSS™</span><h1>{modules.find(m => m.key === active)?.label}</h1><small className="welcome-user">Signed in as {auth.user?.name} · {auth.user?.role}</small></div>
         <div className="top-actions"><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search..." /><button className="primary" onClick={addTask}>+ New Task</button><button className="logout" onClick={onLogout}>Logout</button></div>
       </header>
-      {active === "dashboard" && <Dashboard tasks={tasks} setActive={setActive} />}
-      {active === "tasks" && <Tasks tasks={filteredTasks} />}
+      {taskError && <div className="api-error">{taskError}</div>}
+      {active === "dashboard" && <Dashboard tasks={tasks} setActive={setActive} loading={taskLoading} />}
+      {active === "tasks" && <Tasks tasks={filteredTasks} loading={taskLoading} />}
       {active === "reports" && <Reports tasks={tasks} />}
       {active === "team" && <Team />}
       {active === "settings" && <Settings />}
@@ -119,13 +162,24 @@ function Workspace({ auth, onLogout }) {
   </div>;
 }
 
-function Dashboard({ tasks, setActive }) {
-  const completed = tasks.filter(t => t.status === "Completed").length;
-  return <section className="content"><div className="hero"><div><p className="eyebrow">ENTERPRISE OPERATIONS</p><h2>Good work starts with clear operations.</h2><p>Track tasks, teams and business reports from one simple workspace.</p></div><button className="secondary" onClick={() => setActive("reports")}>View Reports →</button></div><div className="stats"><StatCard label="Open Tasks" value={tasks.length - completed} note="Across operations" /><StatCard label="Completed" value={completed} note="This workspace" /><StatCard label="Team Members" value="12" note="Active users" /><StatCard label="Reports" value="8" note="Ready to review" /></div><div className="grid-two"><div className="panel"><div className="panel-head"><h3>Recent Tasks</h3><button onClick={() => setActive("tasks")}>View all</button></div>{tasks.slice(0,4).map(t => <TaskRow key={t.id} task={t} />)}</div><div className="panel"><div className="panel-head"><h3>Quick Actions</h3></div><div className="quick-grid"><button onClick={() => setActive("tasks")}>✓<span>Manage Tasks</span></button><button onClick={() => setActive("reports")}>▤<span>Open Reports</span></button><button onClick={() => setActive("team")}>◉<span>Team</span></button><button onClick={() => setActive("settings")}>⚙<span>Settings</span></button></div></div></div></section>;
+function Dashboard({ tasks, setActive, loading }) {
+  const completed = tasks.filter(t => t.status === "completed").length;
+  return <section className="content"><div className="hero"><div><p className="eyebrow">ENTERPRISE OPERATIONS</p><h2>Good work starts with clear operations.</h2><p>Track tasks, teams and business reports from one simple workspace.</p></div><button className="secondary" onClick={() => setActive("reports")}>View Reports →</button></div><div className="stats"><StatCard label="Open Tasks" value={tasks.length - completed} note="Across operations" /><StatCard label="Completed" value={completed} note="This workspace" /><StatCard label="Team Members" value="12" note="Active users" /><StatCard label="Reports" value="8" note="Ready to review" /></div><div className="grid-two"><div className="panel"><div className="panel-head"><h3>Recent Tasks</h3><button onClick={() => setActive("tasks")}>View all</button></div>{loading ? <div className="empty">Loading tasks...</div> : tasks.slice(0,4).map(t => <TaskRow key={t._id} task={t} />)}</div><div className="panel"><div className="panel-head"><h3>Quick Actions</h3></div><div className="quick-grid"><button onClick={() => setActive("tasks")}>✓<span>Manage Tasks</span></button><button onClick={() => setActive("reports")}>▤<span>Open Reports</span></button><button onClick={() => setActive("team")}>◉<span>Team</span></button><button onClick={() => setActive("settings")}>⚙<span>Settings</span></button></div></div></div></section>;
 }
 
-function TaskRow({ task }) { return <div className="task-row"><div><b>{task.title}</b><small>{task.owner} · {task.priority} priority</small></div><span className={"status " + task.status.toLowerCase().replaceAll(" ","-")}>{task.status}</span></div>; }
-function Tasks({ tasks }) { return <section className="content"><div className="panel"><div className="panel-head"><h3>Task Management</h3><span>{tasks.length} items</span></div>{tasks.length ? tasks.map(t => <TaskRow key={t.id} task={t} />) : <div className="empty">No matching tasks.</div>}</div></section>; }
-function Reports({ tasks }) { return <section className="content"><div className="stats"><StatCard label="Operational Tasks" value={tasks.length} note="Current dataset" /><StatCard label="High Priority" value={tasks.filter(t=>t.priority==="High").length} note="Needs attention" /><StatCard label="Completion Rate" value={Math.round(tasks.filter(t=>t.status==="Completed").length / Math.max(tasks.length,1) * 100) + "%"} note="Task completion" /></div><div className="panel"><div className="panel-head"><h3>Management Report</h3><button className="secondary">Export</button></div><p className="muted">The workspace is now authentication-ready. Task data is still demo data until the next API module is connected.</p></div></section>; }
-function Team() { return <section className="content"><div className="panel"><div className="panel-head"><h3>Team Directory</h3><span>12 active</span></div>{["Operations","MIS & Reporting","Accounts","IT Support"].map((x,i)=><div className="team-row" key={x}><div className="avatar">{x[0]}</div><div><b>{x}</b><small>{[4,3,2,3][i]} members</small></div><span>Active</span></div>)}</div></section>; }
+function TaskRow({ task }) {
+  const status = task.status === "in-progress" ? "In Progress" : task.status[0].toUpperCase() + task.status.slice(1);
+  const priority = task.priority[0].toUpperCase() + task.priority.slice(1);
+  return <div className="task-row"><div><b>{task.title}</b><small>{priority} priority</small></div><span className={"status " + task.status}>{status}</span></div>;
+}
+
+function Tasks({ tasks, loading }) {
+  return <section className="content"><div className="panel"><div className="panel-head"><h3>Task Management</h3><span>{tasks.length} items</span></div>{loading ? <div className="empty">Loading tasks...</div> : tasks.length ? tasks.map(t => <TaskRow key={t._id} task={t} />) : <div className="empty">No tasks yet. Use + New Task to create one.</div>}</div></section>;
+}
+
+function Reports({ tasks }) {
+  const completed = tasks.filter(t=>t.status==="completed").length;
+  return <section className="content"><div className="stats"><StatCard label="Operational Tasks" value={tasks.length} note="Live API dataset" /><StatCard label="High Priority" value={tasks.filter(t=>t.priority==="high").length} note="Needs attention" /><StatCard label="Completion Rate" value={Math.round(completed / Math.max(tasks.length,1) * 100) + "%"} note="Task completion" /></div><div className="panel"><div className="panel-head"><h3>Management Report</h3><span>Live task data</span></div><p className="muted">Reports are currently calculated from the authenticated user's live task records.</p></div></section>;
+}
+function Team() { return <section className="content"><div className="panel"><div className="panel-head"><h3>Team Directory</h3><span>Coming next</span></div><div className="empty">Team management will use the user API in the next module.</div></div></section>; }
 function Settings() { return <section className="content"><div className="panel settings"><h3>Workspace Settings</h3><label>Organization name<input defaultValue="Shivasha" /></label><label>Product name<input defaultValue="EOSS Sadhna" /></label><label>Environment<select defaultValue="Development"><option>Development</option><option>Production</option></select></label><button className="primary">Save Settings</button></div></section>; }
