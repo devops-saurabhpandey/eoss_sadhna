@@ -185,6 +185,18 @@ function Tasks({ tasks, loading, auth, onChanged }) {
   const [team, setTeam] = useState([]);
   const canAssign = ["admin", "manager"].includes(auth.user?.role);
 
+  const editTask = async (task) => {
+    const title = window.prompt("Task title", task.title);
+    if (!title?.trim()) return;
+    const description = window.prompt("Description", task.description || "");
+    const dueDate = window.prompt("Due date (YYYY-MM-DD, optional)", task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 10) : "");
+    if (dueDate && !/^\\d{4}-\\d{2}-\\d{2}$/.test(dueDate)) {
+      alert("Due date must use YYYY-MM-DD format.");
+      return;
+    }
+    await updateTask(task._id, { title: title.trim(), description, dueDate: dueDate || null });
+  };
+
   useEffect(() => {
     if (canAssign) apiFetch("/api/users", auth).then(setTeam).catch(() => {});
   }, []);
@@ -218,7 +230,7 @@ function Tasks({ tasks, loading, auth, onChanged }) {
       <select value={t.priority} onChange={e => updateTask(t._id, { priority: e.target.value })}>
         <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>
       </select>
-      <button className="logout" onClick={() => deleteTask(t._id)}>Delete</button>
+      <button className="secondary" onClick={() => editTask(t)}>Edit</button><button className="logout" onClick={() => deleteTask(t._id)}>Delete</button>
     </div>
   ) : <div className="empty">No tasks yet. Use + New Task to create one.</div>}</div></section>;
 }
