@@ -175,6 +175,13 @@ function TaskRow({ task }) {
 }
 
 function Tasks({ tasks, loading, auth, onChanged }) {
+  const [team, setTeam] = useState([]);
+  const canAssign = ["admin", "manager"].includes(auth.user?.role);
+
+  useEffect(() => {
+    if (canAssign) apiFetch("/api/users", auth).then(setTeam).catch(() => {});
+  }, []);
+
   const updateTask = async (id, updates) => {
     try {
       const updated = await apiFetch("/api/tasks/" + id, auth, { method: "PATCH", body: JSON.stringify(updates) });
@@ -197,6 +204,7 @@ function Tasks({ tasks, loading, auth, onChanged }) {
   return <section className="content"><div className="panel"><div className="panel-head"><h3>Task Management</h3><span>{tasks.length} items</span></div>{loading ? <div className="empty">Loading tasks...</div> : tasks.length ? tasks.map(t =>
     <div className="task-row" key={t._id}>
       <div><b>{t.title}</b><small>{t.description || "No description"} · {t.priority} priority</small></div>
+      {canAssign && <select value={t.assignedTo || ""} onChange={e => updateTask(t._id, { assignedTo: e.target.value || null })}><option value="">Unassigned</option>{team.map(user => <option key={user._id} value={user._id}>{user.name} · {user.role}</option>)}</select>}
       <select value={t.status} onChange={e => updateTask(t._id, { status: e.target.value })}>
         <option value="pending">Pending</option><option value="in-progress">In Progress</option><option value="completed">Completed</option>
       </select>
