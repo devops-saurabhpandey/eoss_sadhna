@@ -130,10 +130,15 @@ function Workspace({ auth, onLogout }) {
   const addTask = async () => {
     const title = window.prompt("New task name");
     if (!title?.trim()) return;
+    const dueDate = window.prompt("Due date (YYYY-MM-DD, optional)", "");
+    if (dueDate && !/^\\d{4}-\\d{2}-\\d{2}$/.test(dueDate)) {
+      setTaskError("Due date must use YYYY-MM-DD format.");
+      return;
+    }
     try {
       const task = await apiFetch("/api/tasks", auth, {
         method: "POST",
-        body: JSON.stringify({ title: title.trim(), priority: "medium" })
+        body: JSON.stringify({ title: title.trim(), priority: "medium", dueDate: dueDate || null })
       });
       setTasks(prev => [task, ...prev]);
       setActive("tasks");
