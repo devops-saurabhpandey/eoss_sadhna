@@ -106,6 +106,7 @@ function Workspace({ auth, onLogout }) {
   const [taskLoading, setTaskLoading] = useState(true);
   const [taskError, setTaskError] = useState("");
   const [team, setTeam] = useState([]);
+  const [teamLoading, setTeamLoading] = useState(false);
 
   const loadTasks = async () => {
     setTaskLoading(true);
@@ -121,6 +122,12 @@ function Workspace({ auth, onLogout }) {
   };
 
   useEffect(() => { loadTasks(); }, []);
+
+  useEffect(() => {
+    if (!["admin", "manager"].includes(auth.user?.role)) return;
+    setTeamLoading(true);
+    apiFetch("/api/users", auth).then(setTeam).catch(() => {}).finally(() => setTeamLoading(false));
+  }, []);
 
   const filteredTasks = useMemo(
     () => tasks.filter(t => (t.title + t.description + t.status + t.priority).toLowerCase().includes(query.toLowerCase())),
@@ -159,7 +166,7 @@ function Workspace({ auth, onLogout }) {
         <div className="top-actions"><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search..." /><button className="primary" onClick={addTask}>+ New Task</button><button className="logout" onClick={onLogout}>Logout</button></div>
       </header>
       {taskError && <div className="api-error">{taskError}</div>}
-      {active === "dashboard" && <Dashboard tasks={tasks} setActive={setActive} loading={taskLoading} />}
+      {active === "dashboard" && <Dashboard tasks={tasks} setActive={setActive} loading={taskLoading} teamCount={teamLoading ? "…" : team.length} />}
       {active === "tasks" && <Tasks tasks={filteredTasks} loading={taskLoading} auth={auth} onChanged={changed => setTasks(prev => changed.__deleted ? prev.filter(t => t._id !== changed._id) : prev.map(t => t._id === changed._id ? changed : t))} />}
       {active === "reports" && <Reports tasks={tasks} />}
       {active === "team" && <Team auth={auth} team={team} setTeam={setTeam} />}
@@ -168,9 +175,9 @@ function Workspace({ auth, onLogout }) {
   </div>;
 }
 
-function Dashboard({ tasks, setActive, loading }) {
+function Dashboard({ tasks, setActive, loading, teamCount }) {
   const completed = tasks.filter(t => t.status === "completed").length;
-  return <section className="content"><div className="hero"><div><p className="eyebrow">ENTERPRISE OPERATIONS</p><h2>Good work starts with clear operations.</h2><p>Track tasks, teams and business reports from one simple workspace.</p></div><button className="secondary" onClick={() => setActive("reports")}>View Reports →</button></div><div className="stats"><StatCard label="Open Tasks" value={tasks.length - completed} note="Across operations" /><StatCard label="Completed" value={completed} note="This workspace" /><StatCard label="Team Members" value="12" note="Active users" /><StatCard label="Reports" value="8" note="Ready to review" /></div><div className="grid-two"><div className="panel"><div className="panel-head"><h3>Recent Tasks</h3><button onClick={() => setActive("tasks")}>View all</button></div>{loading ? <div className="empty">Loading tasks...</div> : tasks.slice(0,4).map(t => <TaskRow key={t._id} task={t} />)}</div><div className="panel"><div className="panel-head"><h3>Quick Actions</h3></div><div className="quick-grid"><button onClick={() => setActive("tasks")}>✓<span>Manage Tasks</span></button><button onClick={() => setActive("reports")}>▤<span>Open Reports</span></button><button onClick={() => setActive("team")}>◉<span>Team</span></button><button onClick={() => setActive("settings")}>⚙<span>Settings</span></button></div></div></div></section>;
+  return <section className="content"><div className="hero"><div><p className="eyebrow">ENTERPRISE OPERATIONS</p><h2>Good work starts with clear operations.</h2><p>Track tasks, teams and business reports from one simple workspace.</p></div><button className="secondary" onClick={() => setActive("reports")}>View Reports →</button></div><div className="stats"><StatCard label="Open Tasks" value={tasks.length - completed} note="Across operations" /><StatCard label="Completed" value={completed} note="This workspace" /><StatCard label="Team Members" value={teamCount} note="Registered users" /><StatCard label="Reports" value="8" note="Ready to review" /></div><div className="grid-two"><div className="panel"><div className="panel-head"><h3>Recent Tasks</h3><button onClick={() => setActive("tasks")}>View all</button></div>{loading ? <div className="empty">Loading tasks...</div> : tasks.slice(0,4).map(t => <TaskRow key={t._id} task={t} />)}</div><div className="panel"><div className="panel-head"><h3>Quick Actions</h3></div><div className="quick-grid"><button onClick={() => setActive("tasks")}>✓<span>Manage Tasks</span></button><button onClick={() => setActive("reports")}>▤<span>Open Reports</span></button><button onClick={() => setActive("team")}>◉<span>Team</span></button><button onClick={() => setActive("settings")}>⚙<span>Settings</span></button></div></div></div></section>;
 }
 
 function TaskRow({ task }) {
