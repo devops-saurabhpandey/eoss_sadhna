@@ -311,7 +311,7 @@ function RTOOperations({ auth }) {
   </section>;
 }
 
-function Reports({ tasks }) {
+function Reports({ tasks, auth }) {
   const total = tasks.length;
   const completed = tasks.filter(t => t.status === "completed").length;
   const inProgress = tasks.filter(t => t.status === "in-progress").length;
@@ -320,17 +320,24 @@ function Reports({ tasks }) {
   const high = tasks.filter(t => t.priority === "high").length;
   const completion = total ? Math.round((completed / total) * 100) : 0;
 
-  return <section className="content"><div className="panel">
-    <div className="panel-head"><h3>Operations MIS Report</h3><span>{total} total tasks</span></div>
+  return <section className="content">
+    <div className="hero"><div><p className="eyebrow">KTL RTO MIS</p><h2>Reports & Management Information</h2><p>Task performance and operational reporting dashboard.</p></div></div>
     <div className="stats">
-      <StatCard label="Total Tasks" value={total} note="Current workspace" />
+      <StatCard label="Total Tasks" value={total} note="Current records" />
       <StatCard label="Completed" value={completed} note={completion + "% completion"} />
       <StatCard label="In Progress" value={inProgress} note="Active work" />
-      <StatCard label="Pending" value={pending} note="Waiting to start" />
+      <StatCard label="Pending" value={pending} note="Awaiting action" />
+      <StatCard label="Overdue" value={overdue} note="Past due date" />
+      <StatCard label="High Priority" value={high} note="Needs attention" />
     </div>
-    <div className="grid-two"><div className="panel"><div className="panel-head"><h3>Risk & Priority</h3></div><p><b>{overdue}</b> overdue tasks</p><p><b>{high}</b> high-priority tasks</p></div>
-    <div className="panel"><div className="panel-head"><h3>Completion Rate</h3></div><div style={{fontSize:"34px",fontWeight:800}}>{completion}%</div><small className="muted">Completed / total tasks</small></div></div>
-  </div></section>;
+    <div className="panel"><div className="panel-head"><h3>Task MIS Summary</h3><span>{auth.user?.role}</span></div>
+      <div className="report-list">
+        <div className="task-row"><div><b>Completion Rate</b><small>Completed tasks ÷ total tasks</small></div><strong>{completion}%</strong></div>
+        <div className="task-row"><div><b>Workload Status</b><small>{completed} completed · {inProgress} in progress · {pending} pending</small></div><strong>{total}</strong></div>
+        <div className="task-row"><div><b>Risk Items</b><small>Overdue and high-priority tasks</small></div><strong>{overdue + high}</strong></div>
+      </div>
+    </div>
+  </section>;
 }
 
 function Team({ auth, team, setTeam }) {
