@@ -11,7 +11,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
+app.use(cors({ origin: process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(",").map(origin => origin.trim()) : "*" }));
 app.use(express.json());
 
 app.get("/api/health", (_req, res) => {
@@ -33,6 +33,7 @@ app.get("/api", (_req, res) => {
 
 async function start() {
   try {
+    if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is required");
     if (process.env.MONGODB_URI) {
       await mongoose.connect(process.env.MONGODB_URI);
       console.log("MongoDB connected");
