@@ -7,7 +7,8 @@ router.use(requireAuth);
 
 router.get("/", async (req, res) => {
   try {
-    const records = await RTORecord.find().sort({ createdAt: -1 });
+    const filter = ["admin", "manager"].includes(req.user.role) ? {} : { createdBy: req.user.id };
+    const records = await RTORecord.find(filter).sort({ createdAt: -1 });
     res.json(records);
   } catch (error) {
     res.status(500).json({ message: "Failed to load RTO records", error: error.message });
@@ -42,7 +43,11 @@ router.patch("/:id", async (req, res) => {
       Object.entries(req.body).filter(([key]) => allowed.includes(key))
     );
 
-    const record = await RTORecord.findByIdAndUpdate(req.params.id, updates, {
+    const filter = ["admin", "manager"].includes(req.user.role)
+      ? { _id: req.params.id }
+      : { _id: req.params.id, createdBy: req.user.id };
+
+    const record = await RTORecord.findOneAndUpdate(filter, updates, {
       new: true,
       runValidators: true
     });
@@ -56,7 +61,10 @@ router.patch("/:id", async (req, res) => {
 
 router.delete("/:id", async (req, res) => {
   try {
-    const record = await RTORecord.findByIdAndDelete(req.params.id);
+    const filter = ["admin", "manager"].includes(req.user.role)
+      ? { _id: req.params.id }
+      : { _id: req.params.id, createdBy: req.user.id };
+    const record = await RTORecord.findOneAndDelete(filter);
     if (!record) return res.status(404).json({ message: "RTO record not found" });
     res.json({ message: "RTO record deleted" });
   } catch (error) {
