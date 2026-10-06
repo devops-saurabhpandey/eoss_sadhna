@@ -5,6 +5,7 @@ const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const modules = [
   { key: "dashboard", icon: "⌂", label: "Dashboard" },
   { key: "tasks", icon: "✓", label: "Tasks" },
+  { key: "rto", icon: "▣", label: "RTO Operations" },
   { key: "reports", icon: "▤", label: "Reports" },
   { key: "team", icon: "◉", label: "Team" },
   { key: "settings", icon: "⚙", label: "Settings" }
@@ -168,6 +169,7 @@ function Workspace({ auth, onLogout }) {
       {taskError && <div className="api-error">{taskError}</div>}
       {active === "dashboard" && <Dashboard tasks={tasks} setActive={setActive} loading={taskLoading} teamCount={teamLoading ? "…" : team.length} />}
       {active === "tasks" && <Tasks tasks={filteredTasks} loading={taskLoading} auth={auth} onChanged={changed => setTasks(prev => changed.__deleted ? prev.filter(t => t._id !== changed._id) : prev.map(t => t._id === changed._id ? changed : t))} />}
+      {active === "rto" && <RTOOperations tasks={tasks} auth={auth} />}
       {active === "reports" && <Reports tasks={tasks} />}
       {active === "team" && <Team auth={auth} team={team} setTeam={setTeam} />}
       {active === "settings" && <Settings />}
@@ -240,6 +242,50 @@ function Tasks({ tasks, loading, auth, onChanged }) {
       <button className="secondary" onClick={() => editTask(t)}>Edit</button><button className="logout" onClick={() => deleteTask(t._id)}>Delete</button>
     </div>
   ) : <div className="empty">No tasks yet. Use + New Task to create one.</div>}</div></section>;
+}
+
+function RTOOperations({ tasks, auth }) {
+  const [records, setRecords] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("ktl_rto_records")) || []; } catch { return []; }
+  });
+  const [form, setForm] = useState({ vehicleNo: "", branch: "", status: "Pending Registration", transaction: "Pending" });
+
+  const save = (e) => {
+    e.preventDefault();
+    if (!form.vehicleNo.trim() || !form.branch.trim()) return;
+    const next = [{ ...form, id: Date.now(), createdAt: new Date().toISOString() }, ...records];
+    setRecords(next);
+    localStorage.setItem("ktl_rto_records", JSON.stringify(next));
+    setForm({ vehicleNo: "", branch: "", status: "Pending Registration", transaction: "Pending" });
+  };
+
+  const pending = records.filter(r => r.status === "Pending Registration").length;
+  const completed = records.filter(r => r.status === "Completed").length;
+  const transactions = records.filter(r => r.transaction === "Completed").length;
+
+  return <section className="content">
+    <div className="hero"><div><p className="eyebrow">KTL RTO OPERATIONS</p><h2>Vehicle Registration & RTO Work Tracking</h2><p>Track branch-wise registration, RC status and transaction progress.</p></div></div>
+    <div className="stats">
+      <StatCard label="Total Records" value={records.length} note="RTO work records" />
+      <StatCard label="Pending Registration" value={pending} note="Needs action" />
+      <StatCard label="Completed" value={completed} note="Registration completed" />
+      <StatCard label="Transactions Done" value={transactions} note="Transaction status" />
+    </div>
+    <div className="grid-two">
+      <div className="panel"><div className="panel-head"><h3>Add RTO Record</h3><span>{auth.user?.role}</span></div>
+        <form onSubmit={save}>
+          <label>Vehicle Number<input value={form.vehicleNo} onChange={e=>setForm({...form,vehicleNo:e.target.value.toUpperCase()})} placeholder="UP32 AB 1234" /></label>
+          <label>Branch<input value={form.branch} onChange={e=>setForm({...form,branch:e.target.value})} placeholder="Branch name" /></label>
+          <label>Registration Status<select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option>Pending Registration</option><option>In Process</option><option>Completed</option></select></label>
+          <label>Transaction Status<select value={form.transaction} onChange={e=>setForm({...form,transaction:e.target.value})}><option>Pending</option><option>Completed</option></select></label>
+          <button className="primary">Save RTO Record</button>
+        </form>
+      </div>
+      <div className="panel"><div className="panel-head"><h3>Recent RTO Records</h3><span>{records.length}</span></div>
+        {records.length ? records.slice(0,8).map(r=><div className="task-row" key={r.id}><div><b>{r.vehicleNo}</b><small>{r.branch} · {r.status} · Transaction: {r.transaction}</small></div></div>) : <div className="empty">No RTO records yet.</div>}
+      </div>
+    </div>
+  </section>;
 }
 
 function Reports({ tasks }) {
