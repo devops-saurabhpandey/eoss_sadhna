@@ -249,6 +249,9 @@ function RTOOperations({ auth }) {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [editingId, setEditingId] = useState(null);
+  const [filterBranch, setFilterBranch] = useState("All");
+  const [filterReg, setFilterReg] = useState("All");
+  const [filterTxn, setFilterTxn] = useState("All");
   const emptyForm = { vehicleNo: "", branch: "", registrationStatus: "Pending Registration", transactionStatus: "Pending" };
   const [form, setForm] = useState(emptyForm);
   const canManage = ["admin", "manager"].includes(auth.user?.role);
@@ -267,25 +270,16 @@ function RTOOperations({ auth }) {
     if (!form.vehicleNo.trim() || !form.branch.trim()) return;
     try {
       const url = editingId ? "/api/rto/" + editingId : "/api/rto";
-      const record = await apiFetch(url, auth, {
-        method: editingId ? "PATCH" : "POST",
-        body: JSON.stringify(form)
-      });
+      const record = await apiFetch(url, auth, { method: editingId ? "PATCH" : "POST", body: JSON.stringify(form) });
       setRecords(prev => editingId ? prev.map(r => r._id === editingId ? record : r) : [record, ...prev]);
-      setForm(emptyForm);
-      setEditingId(null);
+      setForm(emptyForm); setEditingId(null);
       setMessage(editingId ? "RTO record updated." : "RTO record saved.");
     } catch (error) { setMessage(error.message); }
   };
 
   const edit = (record) => {
     setEditingId(record._id);
-    setForm({
-      vehicleNo: record.vehicleNo,
-      branch: record.branch,
-      registrationStatus: record.registrationStatus,
-      transactionStatus: record.transactionStatus
-    });
+    setForm({ vehicleNo: record.vehicleNo, branch: record.branch, registrationStatus: record.registrationStatus, transactionStatus: record.transactionStatus });
     setMessage("");
   };
 
@@ -298,17 +292,44 @@ function RTOOperations({ auth }) {
     } catch (error) { setMessage(error.message); }
   };
 
-  const pending = records.filter(r => r.registrationStatus === "Pending Registration").length;
-  const completed = records.filter(r => r.registrationStatus === "Completed").length;
-  const transactions = records.filter(r => r.transactionStatus === "Completed").length;
+  const branches = [...new Set(records.map(r => r.branch).filter(Boolean))].sort();
+  const filtered = records.filter(r =>
+    (filterBranch === "All" || r.branch === filterBranch) &&
+    (filterReg === "All" || r.registrationStatus === filterReg) &&
+    (filterTxn === "All" || r.transactionStatus === filterTxn)
+  );
+  const pending = filtered.filter(r => r.registrationStatus === "Pending Registration").length;
+  const inProcess = filtered.filter(r => r.registrationStatus === "In Process").length;
+  const completed = filtered.filter(r => r.registrationStatus === "Completed").length;
+  const transactions = filtered.filter(r => r.transactionStatus === "Completed").length;
+
+  const exportCsv = () => {
+    const headers = ["Vehicle No", "Branch", "Registration Status", "Transaction Status", "Created At"];
+    const rows = filtered.map(r => [r.vehicleNo, r.branch, r.registrationStatus, r.transactionStatus, new Date(r.createdAt).toLocaleString()]);
+    const csv = [headers, ...rows].map(row => row.map(v => '"' + String(v ?? "").replaceAll('"', '""') + '"').join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "KTL-RTO-Records.csv"; a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return <section className="content">
     <div className="hero"><div><p className="eyebrow">KTL RTO OPERATIONS</p><h2>Vehicle Registration & RTO Work Tracking</h2><p>Branch-wise registration, RC status and transaction progress.</p></div></div>
     <div className="stats">
-      <StatCard label="Total Records" value={records.length} note={canManage ? "All department records" : "My records"} />
+      <StatCard label="Total Records" value={filtered.length} note={canManage ? "All department records" : "My records"} />
       <StatCard label="Pending Registration" value={pending} note="Needs action" />
+      <StatCard label="In Process" value={inProcess} note="Work in progress" />
       <StatCard label="Completed" value={completed} note="Registration completed" />
       <StatCard label="Transactions Done" value={transactions} note="Transaction status" />
+    </div>
+    <div className="panel">
+      <div className="panel-head"><h3>RTO Filters</h3><span>{filtered.length} records</span></div>
+      <div className="filter-row">
+        <label>Branch<select value={filterBranch} onChange={e=>setFilterBranch(e.target.value)}><option>All</option>{branches.map(b=><option key={b}>{b}</option>)}</select></label>
+        <label>Registration Status<select value={filterReg} onChange={e=>setFilterReg(e.target.value)}><option>All</option><option>Pending Registration</option><option>In Process</option><option>Completed</option></select></label>
+        <label>Transaction Status<select value={filterTxn} onChange={e=>setFilterTxn(e.target.value)}><option>All</option><option>Pending</option><option>Completed</option></select></label>
+        <button className="primary" onClick={exportCsv} disabled={!filtered.length}>Export CSV</button>
+      </div>
     </div>
     <div className="grid-two">
       <div className="panel"><div className="panel-head"><h3>{editingId ? "Edit RTO Record" : "Add RTO Record"}</h3><span>{auth.user?.role}</span></div>
@@ -322,7 +343,7 @@ function RTOOperations({ auth }) {
         {message && <div className="login-message">{message}</div>}
       </div>
       <div className="panel"><div className="panel-head"><h3>Recent RTO Records</h3><span>{records.length}</span></div>
-        {loading ? <div className="empty">Loading RTO records...</div> : records.length ? records.slice(0,12).map(r=><div className="task-row" key={r._id}><div><b>{r.vehicleNo}</b><small>{r.branch} · {r.registrationStatus} · Transaction: {r.transactionStatus}</small></div><div className="button-row"><button className="logout" onClick={()=>edit(r)}>Edit</button><button className="logout" onClick={()=>remove(r._id)}>Delete</button></div></div>) : <div className="empty">No RTO records yet.</div>}
+        {loading ? <div className="empty">Loading RTO records...</div> : filtered.length ? filtered.slice(0,12).map(r=><div className="task-row" key={r._id}><div><b>{r.vehicleNo}</b><small>{r.branch} · {r.registrationStatus} · Transaction: {r.transactionStatus}</small></div><div className="button-row"><button className="logout" onClick={()=>edit(r)}>Edit</button><button className="logout" onClick={()=>remove(r._id)}>Delete</button></div></div>) : <div className="empty">No RTO records match the selected filters.</div>}
       </div>
     </div>
   </section>;
