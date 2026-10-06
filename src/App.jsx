@@ -105,6 +105,7 @@ function Workspace({ auth, onLogout }) {
   const [query, setQuery] = useState("");
   const [taskLoading, setTaskLoading] = useState(true);
   const [taskError, setTaskError] = useState("");
+  const [team, setTeam] = useState([]);
 
   const loadTasks = async () => {
     setTaskLoading(true);
@@ -156,7 +157,7 @@ function Workspace({ auth, onLogout }) {
       {active === "dashboard" && <Dashboard tasks={tasks} setActive={setActive} loading={taskLoading} />}
       {active === "tasks" && <Tasks tasks={filteredTasks} loading={taskLoading} auth={auth} onChanged={changed => setTasks(prev => changed.__deleted ? prev.filter(t => t._id !== changed._id) : prev.map(t => t._id === changed._id ? changed : t))} />}
       {active === "reports" && <Reports tasks={tasks} />}
-      {active === "team" && <Team />}
+      {active === "team" && <Team auth={auth} team={team} setTeam={setTeam} />}
       {active === "settings" && <Settings />}
     </main>
   </div>;
@@ -211,5 +212,27 @@ function Reports({ tasks }) {
   const completed = tasks.filter(t=>t.status==="completed").length;
   return <section className="content"><div className="stats"><StatCard label="Operational Tasks" value={tasks.length} note="Live API dataset" /><StatCard label="High Priority" value={tasks.filter(t=>t.priority==="high").length} note="Needs attention" /><StatCard label="Completion Rate" value={Math.round(completed / Math.max(tasks.length,1) * 100) + "%"} note="Task completion" /></div><div className="panel"><div className="panel-head"><h3>Management Report</h3><span>Live task data</span></div><p className="muted">Reports are currently calculated from the authenticated user's live task records.</p></div></section>;
 }
-function Team() { return <section className="content"><div className="panel"><div className="panel-head"><h3>Team Directory</h3><span>Coming next</span></div><div className="empty">Team management will use the user API in the next module.</div></div></section>; }
+function Team({ auth, team, setTeam }) {
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  const canManage = ["admin", "manager"].includes(auth.user?.role);
+
+  useEffect(() => {
+    if (!canManage) { setLoading(false); return; }
+    apiFetch("/api/users", auth).then(setTeam).catch(error => setMessage(error.message)).finally(() => setLoading(false));
+  }, []);
+
+  const changeRole = async (id, role) => {
+    try {
+      const updated = await apiFetch("/api/users/" + id + "/role", auth, { method: "PATCH", body: JSON.stringify({ role }) });
+      setTeam(prev => prev.map(user => user._id === id ? updated : user));
+      setMessage("Role updated successfully.");
+    } catch (error) { setMessage(error.message); }
+  };
+
+  if (!canManage) return <section className="content"><div className="panel"><h3>Team Directory</h3><div className="empty">Only managers and admins can view the team directory.</div></div></section>;
+  return <section className="content"><div className="panel"><div className="panel-head"><h3>Team Directory</h3><span>{team.length} users</span></div>{message && <div className="login-message">{message}</div>}{loading ? <div className="empty">Loading team...</div> : team.length ? team.map(user =>
+    <div className="team-row" key={user._id}><div className="avatar">{user.name?.charAt(0).toUpperCase()}</div><div><b>{user.name}</b><small>{user.email}</small></div><select value={user.role} onChange={e => changeRole(user._id, e.target.value)} disabled={auth.user?.role !== "admin" || user._id === auth.user?.id}><option value="employee">Employee</option><option value="manager">Manager</option><option value="admin">Admin</option></select></div>
+  ) : <div className="empty">No team members found.</div>}</div></section>;
+}
 function Settings() { return <section className="content"><div className="panel settings"><h3>Workspace Settings</h3><label>Organization name<input defaultValue="Shivasha" /></label><label>Product name<input defaultValue="EOSS Sadhna" /></label><label>Environment<select defaultValue="Development"><option>Development</option><option>Production</option></select></label><button className="primary">Save Settings</button></div></section>; }
