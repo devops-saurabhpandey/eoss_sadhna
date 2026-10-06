@@ -171,7 +171,9 @@ function Dashboard({ tasks, setActive, loading }) {
 function TaskRow({ task }) {
   const status = task.status === "in-progress" ? "In Progress" : task.status[0].toUpperCase() + task.status.slice(1);
   const priority = task.priority[0].toUpperCase() + task.priority.slice(1);
-  return <div className="task-row"><div><b>{task.title}</b><small>{priority} priority</small></div><span className={"status " + task.status}>{status}</span></div>;
+  const due = task.dueDate ? new Date(task.dueDate) : null;
+  const overdue = due && due < new Date() && task.status !== "completed";
+  return <div className="task-row"><div><b>{task.title}</b><small>{priority} priority{due ? " · Due " + due.toLocaleDateString() : ""}{overdue ? " · OVERDUE" : ""}</small></div><span className={"status " + task.status}>{status}</span></div>;
 }
 
 function Tasks({ tasks, loading, auth, onChanged }) {
