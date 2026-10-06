@@ -312,6 +312,10 @@ function RTOOperations({ auth }) {
 }
 
 function Reports({ tasks, auth }) {
+  const [rtoRecords, setRtoRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
   const total = tasks.length;
   const completed = tasks.filter(t => t.status === "completed").length;
   const inProgress = tasks.filter(t => t.status === "in-progress").length;
@@ -320,8 +324,32 @@ function Reports({ tasks, auth }) {
   const high = tasks.filter(t => t.priority === "high").length;
   const completion = total ? Math.round((completed / total) * 100) : 0;
 
+  useEffect(() => {
+    let active = true;
+    apiFetch("/api/rto", auth)
+      .then(data => { if (active) setRtoRecords(data); })
+      .catch(err => { if (active) setError(err.message); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [auth]);
+
+  const branches = [...new Set(rtoRecords.map(r => r.branch).filter(Boolean))].sort();
+  const branchRows = branches.map(branch => {
+    const rows = rtoRecords.filter(r => r.branch === branch);
+    return {
+      branch,
+      total: rows.length,
+      pending: rows.filter(r => r.registrationStatus === "Pending Registration").length,
+      inProcess: rows.filter(r => r.registrationStatus === "In Process").length,
+      completed: rows.filter(r => r.registrationStatus === "Completed").length,
+      transactionPending: rows.filter(r => r.transactionStatus === "Pending").length,
+      transactionCompleted: rows.filter(r => r.transactionStatus === "Completed").length
+    };
+  });
+
   return <section className="content">
-    <div className="hero"><div><p className="eyebrow">KTL RTO MIS</p><h2>Reports & Management Information</h2><p>Task performance and operational reporting dashboard.</p></div></div>
+    <div className="hero"><div><p className="eyebrow">KTL RTO MIS</p><h2>Reports & Management Information</h2><p>Task performance and branch-wise RTO operational reporting.</p></div></div>
+
     <div className="stats">
       <StatCard label="Total Tasks" value={total} note="Current records" />
       <StatCard label="Completed" value={completed} note={completion + "% completion"} />
@@ -330,6 +358,13 @@ function Reports({ tasks, auth }) {
       <StatCard label="Overdue" value={overdue} note="Past due date" />
       <StatCard label="High Priority" value={high} note="Needs attention" />
     </div>
+
+    <div className="panel">
+      <div className="panel-head"><h3>Branch-wise RTO MIS</h3><span>{loading ? "Loading..." : branches.length + " branches"}</span></div>
+      {error && <div className="login-message">{error}</div>}
+      {!loading && branchRows.length > 0 ? <div className="table-wrap"><table><thead><tr><th>Branch</th><th>Total</th><th>Pending</th><th>In Process</th><th>Completed</th><th>Txn Pending</th><th>Txn Done</th></tr></thead><tbody>{branchRows.map(row => <tr key={row.branch}><td><b>{row.branch}</b></td><td>{row.total}</td><td>{row.pending}</td><td>{row.inProcess}</td><td>{row.completed}</td><td>{row.transactionPending}</td><td>{row.transactionCompleted}</td></tr>)}</tbody></table></div> : !loading ? <div className="empty">No RTO records available for branch-wise MIS.</div> : null}
+    </div>
+
     <div className="panel"><div className="panel-head"><h3>Task MIS Summary</h3><span>{auth.user?.role}</span></div>
       <div className="report-list">
         <div className="task-row"><div><b>Completion Rate</b><small>Completed tasks ÷ total tasks</small></div><strong>{completion}%</strong></div>
