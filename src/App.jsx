@@ -332,6 +332,8 @@ function Reports({ tasks, auth }) {
   const [rtoRecords, setRtoRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [branchFilter, setBranchFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
 
   const total = tasks.length;
   const completed = tasks.filter(t => t.status === "completed").length;
@@ -351,8 +353,12 @@ function Reports({ tasks, auth }) {
   }, [auth]);
 
   const branches = [...new Set(rtoRecords.map(r => r.branch).filter(Boolean))].sort();
-  const branchRows = branches.map(branch => {
-    const rows = rtoRecords.filter(r => r.branch === branch);
+  const filtered = rtoRecords.filter(r =>
+    (branchFilter === "All" || r.branch === branchFilter) &&
+    (statusFilter === "All" || r.registrationStatus === statusFilter)
+  );
+  const branchRows = [...new Set(filtered.map(r => r.branch).filter(Boolean))].sort().map(branch => {
+    const rows = filtered.filter(r => r.branch === branch);
     return {
       branch,
       total: rows.length,
@@ -364,9 +370,21 @@ function Reports({ tasks, auth }) {
     };
   });
 
+  const exportCsv = () => {
+    const headers = ["Branch", "Total", "Pending", "In Process", "Completed", "Transaction Pending", "Transaction Done"];
+    const rows = branchRows.map(r => [r.branch, r.total, r.pending, r.inProcess, r.completed, r.transactionPending, r.transactionCompleted]);
+    const csv = [headers, ...rows].map(row => row.map(v => '"' + String(v).replaceAll('"', '""') + '"').join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "KTL-RTO-Branch-MIS.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return <section className="content">
     <div className="hero"><div><p className="eyebrow">KTL RTO MIS</p><h2>Reports & Management Information</h2><p>Task performance and branch-wise RTO operational reporting.</p></div></div>
-
     <div className="stats">
       <StatCard label="Total Tasks" value={total} note="Current records" />
       <StatCard label="Completed" value={completed} note={completion + "% completion"} />
@@ -375,13 +393,16 @@ function Reports({ tasks, auth }) {
       <StatCard label="Overdue" value={overdue} note="Past due date" />
       <StatCard label="High Priority" value={high} note="Needs attention" />
     </div>
-
     <div className="panel">
-      <div className="panel-head"><h3>Branch-wise RTO MIS</h3><span>{loading ? "Loading..." : branches.length + " branches"}</span></div>
+      <div className="panel-head"><h3>Branch-wise RTO MIS</h3><span>{loading ? "Loading..." : filtered.length + " records"}</span></div>
+      <div className="filter-row">
+        <label>Branch<select value={branchFilter} onChange={e=>setBranchFilter(e.target.value)}><option>All</option>{branches.map(b=><option key={b}>{b}</option>)}</select></label>
+        <label>Registration Status<select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option>All</option><option>Pending Registration</option><option>In Process</option><option>Completed</option></select></label>
+        <button className="primary" onClick={exportCsv} disabled={!branchRows.length}>Export CSV</button>
+      </div>
       {error && <div className="login-message">{error}</div>}
-      {!loading && branchRows.length > 0 ? <div className="table-wrap"><table><thead><tr><th>Branch</th><th>Total</th><th>Pending</th><th>In Process</th><th>Completed</th><th>Txn Pending</th><th>Txn Done</th></tr></thead><tbody>{branchRows.map(row => <tr key={row.branch}><td><b>{row.branch}</b></td><td>{row.total}</td><td>{row.pending}</td><td>{row.inProcess}</td><td>{row.completed}</td><td>{row.transactionPending}</td><td>{row.transactionCompleted}</td></tr>)}</tbody></table></div> : !loading ? <div className="empty">No RTO records available for branch-wise MIS.</div> : null}
+      {!loading && branchRows.length > 0 ? <div className="table-wrap"><table><thead><tr><th>Branch</th><th>Total</th><th>Pending</th><th>In Process</th><th>Completed</th><th>Txn Pending</th><th>Txn Done</th></tr></thead><tbody>{branchRows.map(row => <tr key={row.branch}><td><b>{row.branch}</b></td><td>{row.total}</td><td>{row.pending}</td><td>{row.inProcess}</td><td>{row.completed}</td><td>{row.transactionPending}</td><td>{row.transactionCompleted}</td></tr>)}</tbody></table></div> : !loading ? <div className="empty">No RTO records match the selected filters.</div> : null}
     </div>
-
     <div className="panel"><div className="panel-head"><h3>Task MIS Summary</h3><span>{auth.user?.role}</span></div>
       <div className="report-list">
         <div className="task-row"><div><b>Completion Rate</b><small>Completed tasks ÷ total tasks</small></div><strong>{completion}%</strong></div>
