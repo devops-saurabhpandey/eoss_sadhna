@@ -2,6 +2,9 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
+import authRoutes from "./routes/auth.js";
+import userRoutes from "./routes/users.js";
+import taskRoutes from "./routes/tasks.js";
 
 dotenv.config();
 
@@ -19,6 +22,10 @@ app.get("/api/health", (_req, res) => {
     database: mongoose.connection.readyState === 1 ? "connected" : "not-connected"
   });
 });
+
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/tasks", taskRoutes);
 
 app.get("/api", (_req, res) => {
   res.json({ message: "EOSS Sadhna API is running" });
