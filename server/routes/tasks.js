@@ -21,7 +21,7 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const { title, description = "", priority = "medium", dueDate = null } = req.body;
+    const { title, description = "", priority = "medium", dueDate = null, assignedTo = null } = req.body;
     if (!title?.trim()) return res.status(400).json({ message: "Task title is required" });
 
     const task = await Task.create({
@@ -29,7 +29,8 @@ router.post("/", async (req, res) => {
       description,
       priority,
       dueDate: dueDate || null,
-      createdBy: req.user.id
+      createdBy: req.user.id,
+      assignedTo: canManageAll(req) ? assignedTo || null : req.user.id
     });
     res.status(201).json(task);
   } catch (error) {
@@ -39,10 +40,11 @@ router.post("/", async (req, res) => {
 
 router.patch("/:id", async (req, res) => {
   try {
-    const allowed = ["title", "description", "status", "priority", "dueDate"];
+    const allowed = ["title", "description", "status", "priority", "dueDate", "assignedTo"];
     const updates = Object.fromEntries(
       Object.entries(req.body).filter(([key]) => allowed.includes(key))
     );
+    if (!canManageAll(req)) delete updates.assignedTo;
 
     const filter = canManageAll(req) ? { _id: req.params.id } : { _id: req.params.id, createdBy: req.user.id };
     const task = await Task.findOneAndUpdate(
