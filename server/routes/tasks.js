@@ -5,9 +5,14 @@ import { requireAuth } from "../middleware/auth.js";
 const router = Router();
 router.use(requireAuth);
 
+function canManageAll(req) {
+  return ["admin", "manager"].includes(req.user.role);
+}
+
 router.get("/", async (req, res) => {
   try {
-    const tasks = await Task.find({ createdBy: req.user.id }).sort({ createdAt: -1 });
+    const filter = canManageAll(req) ? {} : { createdBy: req.user.id };
+    const tasks = await Task.find(filter).sort({ createdAt: -1 });
     res.json(tasks);
   } catch (error) {
     res.status(500).json({ message: "Failed to load tasks", error: error.message });
@@ -39,8 +44,9 @@ router.patch("/:id", async (req, res) => {
       Object.entries(req.body).filter(([key]) => allowed.includes(key))
     );
 
+    const filter = canManageAll(req) ? { _id: req.params.id } : { _id: req.params.id, createdBy: req.user.id };
     const task = await Task.findOneAndUpdate(
-      { _id: req.params.id, createdBy: req.user.id },
+      filter,
       updates,
       { new: true, runValidators: true }
     );
@@ -54,7 +60,8 @@ router.patch("/:id", async (req, res) => {
 
 router.delete("/:id", async (req, res) => {
   try {
-    const task = await Task.findOneAndDelete({ _id: req.params.id, createdBy: req.user.id });
+    const filter = canManageAll(req) ? { _id: req.params.id } : { _id: req.params.id, createdBy: req.user.id };
+    const task = await Task.findOneAndDelete(filter);
     if (!task) return res.status(404).json({ message: "Task not found" });
     res.json({ message: "Task deleted" });
   } catch (error) {
