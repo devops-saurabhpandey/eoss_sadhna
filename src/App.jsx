@@ -65,7 +65,7 @@ function Login({ onLogin }) {
 
   return <div className="login-page">
     <div className="login-card">
-      <div className="brand login-brand"><div className="brand-mark">S</div><div><b>KTL</b><small>KTL RTO DEPARTMENT</small></div></div>
+      <div className="brand login-brand"><div className="brand-mark">K</div><div><b>KTL PVT LTD</b><small>(RTO DEPARTMENT)</small></div></div>
       <p className="eyebrow">ENTERPRISE OPERATIONS & SUPPORT SYSTEM</p>
       <h1>{mode === "login" ? "Welcome back" : "Create your account"}</h1>
       <p className="muted">{mode === "login" ? "Sign in to continue to KTL RTO DEPARTMENT." : "Register a user for the KTL RTO DEPARTMENT workspace."}</p>
@@ -163,14 +163,14 @@ function Workspace({ auth, onLogout }) {
     </aside>
     <main className="main">
       <header className="topbar">
-        <div><span className="eyebrow">KTL RTO DEPARTMENT</span><h1>{modules.find(m => m.key === active)?.label}</h1><small className="welcome-user">Signed in as {auth.user?.name} · {auth.user?.role}</small></div>
+        <div><span className="eyebrow">KTL PVT LTD (RTO DEPARTMENT)</span><h1>{modules.find(m => m.key === active)?.label}</h1><small className="welcome-user">Signed in as {auth.user?.name} · {auth.user?.role}</small></div>
         <div className="top-actions"><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search..." /><button className="primary" onClick={addTask}>+ New Task</button><button className="logout" onClick={onLogout}>Logout</button></div>
       </header>
       {taskError && <div className="api-error">{taskError}</div>}
       {active === "dashboard" && <Dashboard tasks={tasks} setActive={setActive} loading={taskLoading} teamCount={teamLoading ? "…" : team.length} />}
       {active === "tasks" && <Tasks tasks={filteredTasks} loading={taskLoading} auth={auth} onChanged={changed => setTasks(prev => changed.__deleted ? prev.filter(t => t._id !== changed._id) : prev.map(t => t._id === changed._id ? changed : t))} />}
       {active === "rto" && <RTOOperations tasks={tasks} auth={auth} />}
-      {active === "reports" && <Reports tasks={tasks} />}
+      {active === "reports" && <Reports tasks={tasks} auth={auth} />}
       {active === "team" && <Team auth={auth} team={team} setTeam={setTeam} />}
       {active === "settings" && <Settings />}
     </main>
@@ -457,4 +457,4 @@ function Team({ auth, team, setTeam }) {
     <div className="team-row" key={user._id}><div className="avatar">{user.name?.charAt(0).toUpperCase()}</div><div><b>{user.name}</b><small>{user.email}</small></div><select value={user.role} onChange={e => changeRole(user._id, e.target.value)} disabled={auth.user?.role !== "admin" || user._id === auth.user?.id}><option value="employee">Employee</option><option value="manager">Manager</option><option value="admin">Admin</option></select></div>
   ) : <div className="empty">No team members found.</div>}</div></section>;
 }
-function Settings() { return <section className="content"><div className="panel settings"><h3>Workspace Settings</h3><label>Organization name<input defaultValue="Shivasha" /></label><label>Product name<input defaultValue="KTL RTO DEPARTMENT" /></label><label>Environment<select defaultValue="Development"><option>Development</option><option>Production</option></select></label><button className="primary">Save Settings</button></div></section>; }
+function Settings() { return <section className="content"><div className="panel settings"><h3>Workspace Settings</h3><label>Organization name<input defaultValue="KTL PVT LTD" /></label><label>Product name<input defaultValue="KTL RTO DEPARTMENT" /></label><label>Environment<select defaultValue="Development"><option>Development</option><option>Production</option></select></label><button className="primary">Save Settings</button></div></section>; }
