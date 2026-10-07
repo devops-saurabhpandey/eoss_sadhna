@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: eoss-sadhna-api
+    name: ktl-rto-api
     runtime: node
     rootDir: server
     buildCommand: npm install
