@@ -65,7 +65,7 @@ function Login({ onLogin }) {
 
   return <div className="login-page">
     <div className="login-card">
-      <div className="maruti-header"><div className="maruti-emblem">S</div><div className="maruti-wordmark">MARUTI SUZUKI</div></div><div className="brand login-brand"><div><b>KTL PVT LTD</b><small>(RTO DEPARTMENT)</small></div></div>
+      <div className="maruti-header"><img className="maruti-logo" src="https://upload.wikimedia.org/wikipedia/commons/8/86/Maruti_Suzuki_logo.svg" alt="Maruti Suzuki" /></div><div className="brand login-brand"><div><b>KTL PVT LTD</b><small>(RTO DEPARTMENT)</small></div></div>
       <p className="eyebrow">ENTERPRISE OPERATIONS & SUPPORT SYSTEM</p>
       <h1>{mode === "login" ? "Welcome back" : "Create your account"}</h1>
       <p className="muted">{mode === "login" ? "Sign in to continue to KTL RTO DEPARTMENT." : "Register a user for the KTL RTO DEPARTMENT workspace."}</p>
@@ -157,7 +157,7 @@ function Workspace({ auth, onLogout }) {
 
   return <div className="app-shell">
     <aside className="sidebar">
-      <div className="brand"><div className="maruti-emblem sidebar-logo">S</div><div><b>KTL PVT LTD</b><small>(RTO DEPARTMENT)</small></div></div>
+      <div className="brand"><img className="maruti-logo sidebar-logo" src="https://upload.wikimedia.org/wikipedia/commons/8/86/Maruti_Suzuki_logo.svg" alt="Maruti Suzuki" /><div><b>KTL PVT LTD</b><small>(RTO DEPARTMENT)</small></div></div>
       <nav>{modules.map(m => <button key={m.key} className={active === m.key ? "nav-item active" : "nav-item"} onClick={() => setActive(m.key)}><span>{m.icon}</span>{m.label}</button>)}</nav>
       <div className="sidebar-footer">Enterprise Operations<br />& Support System</div>
     </aside>
