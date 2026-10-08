@@ -10,6 +10,27 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 *
 const extractHashtags = text => [...new Set((text.match(/#[a-zA-Z0-9_]+/g) || []).map(tag => tag.slice(1).toLowerCase()))].slice(0, 20);
 const populatePost = query => query.populate("author", "name email bio avatarUrl").populate("comments.user", "name avatarUrl");
 
+async function uploadImage(file) {
+  if (!file) throw new Error("Image file is required");
+  if (!["image/jpeg","image/png","image/webp","image/gif"].includes(file.mimetype)) throw new Error("Only JPG, PNG, WEBP or GIF images are allowed");
+  if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+    const { v2: cloudinary } = await import("cloudinary");
+    cloudinary.config({
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET
+    });
+    return new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder: "shivasha/posts", resource_type: "image", transformation: [{ width: 1600, height: 1600, crop: "limit", quality: "auto", fetch_format: "auto" }] },
+        (error, result) => error ? reject(error) : resolve(result.secure_url)
+      );
+      stream.end(file.buffer);
+    });
+  }
+  return "data:" + file.mimetype + ";base64," + file.buffer.toString("base64");
+}
+
 router.get("/", requireAuth, async (req, res) => {
   const filter = req.query.hashtag ? { hashtags: String(req.query.hashtag).toLowerCase().replace(/^#/, "") } : {};
   res.json(await populatePost(Post.find(filter).sort({ createdAt: -1 }).limit(50)));
@@ -21,10 +42,12 @@ router.get("/saved", requireAuth, async (req, res) => {
 });
 
 router.post("/upload", requireAuth, upload.single("image"), async (req, res) => {
-  if (!req.file) return res.status(400).json({ message: "Image file is required" });
-  if (!["image/jpeg","image/png","image/webp","image/gif"].includes(req.file.mimetype)) return res.status(400).json({ message: "Only JPG, PNG, WEBP or GIF images are allowed" });
-  const imageUrl = "data:" + req.file.mimetype + ";base64," + req.file.buffer.toString("base64");
-  res.status(201).json({ imageUrl });
+  try {
+    const imageUrl = await uploadImage(req.file);
+    res.status(201).json({ imageUrl, storage: imageUrl.startsWith("data:") ? "database-fallback" : "cloudinary" });
+  } catch (error) {
+    res.status(400).json({ message: error.message || "Image upload failed" });
+  }
 });
 
 router.post("/", requireAuth, async (req, res) => {
