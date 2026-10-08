@@ -4,42 +4,46 @@ import { requireAuth } from "../middleware/auth.js";
 
 const router = Router();
 
-function requireManager(req, res, next) {
-  if (!["admin", "manager"].includes(req.user.role)) {
-    return res.status(403).json({ message: "Manager or admin access required" });
-  }
-  next();
-}
-
 router.get("/me", requireAuth, async (req, res) => {
   const user = await User.findById(req.user.id).select("-passwordHash");
   if (!user) return res.status(404).json({ message: "User not found" });
   res.json({ user });
 });
 
-router.get("/", requireAuth, requireManager, async (_req, res) => {
-  const users = await User.find().select("-passwordHash").sort({ createdAt: -1 });
+router.patch("/me", requireAuth, async (req, res) => {
+  const allowed = ["name", "bio", "avatarUrl"];
+  const updates = {};
+  for (const key of allowed) {
+    if (req.body[key] !== undefined) updates[key] = String(req.body[key]).trim();
+  }
+  if (updates.name !== undefined && !updates.name) return res.status(400).json({ message: "Name is required" });
+  const user = await User.findByIdAndUpdate(req.user.id, updates, { new: true, runValidators: true }).select("-passwordHash");
+  res.json({ user });
+});
+
+router.get("/discover", requireAuth, async (req, res) => {
+  const users = await User.find({ _id: { $ne: req.user.id } })
+    .select("-passwordHash")
+    .sort({ createdAt: -1 })
+    .limit(30);
   res.json(users);
 });
 
-router.patch("/:id/role", requireAuth, requireManager, async (req, res) => {
-  const { role } = req.body;
-  if (!["admin", "manager", "employee"].includes(role)) {
-    return res.status(400).json({ message: "Invalid role" });
+router.post("/:id/follow", requireAuth, async (req, res) => {
+  if (req.params.id === req.user.id) return res.status(400).json({ message: "You cannot follow yourself" });
+  const target = await User.findById(req.params.id);
+  const me = await User.findById(req.user.id);
+  if (!target || !me) return res.status(404).json({ message: "User not found" });
+  const following = me.following.some(id => id.toString() === target._id.toString());
+  if (following) {
+    me.following = me.following.filter(id => id.toString() !== target._id.toString());
+    target.followers = target.followers.filter(id => id.toString() !== me._id.toString());
+  } else {
+    me.following.push(target._id);
+    target.followers.push(me._id);
   }
-  if (req.params.id === req.user.id && role !== "admin") {
-    return res.status(400).json({ message: "You cannot remove your own admin access" });
-  }
-  if (req.user.role === "manager" && role === "admin") {
-    return res.status(403).json({ message: "Managers cannot promote users to admin" });
-  }
-  const user = await User.findByIdAndUpdate(
-    req.params.id,
-    { role },
-    { new: true, runValidators: true }
-  ).select("-passwordHash");
-  if (!user) return res.status(404).json({ message: "User not found" });
-  res.json(user);
+  await Promise.all([me.save(), target.save()]);
+  res.json({ following: !following, followers: target.followers.length, followingCount: me.following.length });
 });
 
 export default router;
