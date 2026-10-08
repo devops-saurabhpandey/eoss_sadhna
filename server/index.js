@@ -21,6 +21,8 @@ const allowedOrigins = process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split
 app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
+const onlineUsers = new Map();
+
 const io = new Server(httpServer, {
   cors: { origin: allowedOrigins, methods: ["GET", "POST"] }
 });
@@ -39,13 +41,21 @@ io.use((socket, next) => {
 io.on("connection", socket => {
   const userId = socket.user.id.toString();
   socket.join("user:" + userId);
+  onlineUsers.set(userId, (onlineUsers.get(userId) || 0) + 1);
   socket.emit("realtime:ready", { userId });
+  socket.emit("presence:list", { userIds: [...onlineUsers.keys()] });
   socket.broadcast.emit("presence:online", { userId });
 
   socket.on("presence:heartbeat", () => socket.emit("presence:pong", { at: Date.now() }));
+  socket.on("typing:start", ({ conversationId } = {}) => { if (conversationId) socket.to("conversation:" + conversationId).emit("typing:start", { userId, conversationId }); });
+  socket.on("typing:stop", ({ conversationId } = {}) => { if (conversationId) socket.to("conversation:" + conversationId).emit("typing:stop", { userId, conversationId }); });
+  socket.on("conversation:join", ({ conversationId } = {}) => { if (conversationId) socket.join("conversation:" + conversationId); });
+  socket.on("conversation:leave", ({ conversationId } = {}) => { if (conversationId) socket.leave("conversation:" + conversationId); });
 
   socket.on("disconnect", () => {
-    socket.broadcast.emit("presence:offline", { userId });
+    const count = Math.max((onlineUsers.get(userId) || 1) - 1, 0);
+    if (count === 0) { onlineUsers.delete(userId); socket.broadcast.emit("presence:offline", { userId }); }
+    else onlineUsers.set(userId, count);
   });
 });
 
