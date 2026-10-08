@@ -73,7 +73,7 @@ router.post("/:id/repost", requireAuth, async (req, res) => {
   const existing = await Post.findOne({ author: req.user.id, repostOf: original._id });
   if (existing) return res.status(409).json({ message: "You already reposted this post" });
   const repost = await Post.create({ author: req.user.id, repostOf: original._id, text: String(req.body.text || "").trim(), hashtags: extractHashtags(String(req.body.text || "")) });
-  if (original.author.toString() !== req.user.id) await Notification.create({ recipient: original.author, actor: req.user.id, type: "comment", post: original._id });
+  if (original.author.toString() !== req.user.id) await Notification.create({ recipient: original.author, actor: req.user.id, type: "repost", post: original._id });
   original.reposts.push(req.user.id);
   await original.save();
   res.status(201).json(await populatePost(Post.findById(repost._id)));
@@ -86,7 +86,7 @@ router.post("/:id/comments", requireAuth, async (req, res) => {
   if (!post) return res.status(404).json({ message: "Post not found" });
   post.comments.push({ user: req.user.id, text });
   await post.save();
-  if (post.author.toString() !== req.user.id) await Notification.create({ recipient: post.author, actor: req.user.id, type: "comment", post: post._id });
+  if (post.author.toString() !== req.user.id) { const n = await Notification.create({ recipient: post.author, actor: req.user.id, type: "comment", post: post._id }); req.app.get("io")?.to("user:" + post.author.toString()).emit("notification:new", { notificationId: n._id }); }
   res.json(await populatePost(Post.findById(post._id)));
 });
 
@@ -99,7 +99,7 @@ router.post("/:postId/comments/:commentId/replies", requireAuth, async (req, res
   if (!comment) return res.status(404).json({ message: "Comment not found" });
   comment.replies.push({ user: req.user.id, text });
   await post.save();
-  if (comment.user.toString() !== req.user.id) await Notification.create({ recipient: comment.user, actor: req.user.id, type: "comment", post: post._id });
+  if (comment.user.toString() !== req.user.id) { const n = await Notification.create({ recipient: comment.user, actor: req.user.id, type: "comment", post: post._id }); req.app.get("io")?.to("user:" + comment.user.toString()).emit("notification:new", { notificationId: n._id }); }
   res.json(await populatePost(Post.findById(post._id)));
 });
 
@@ -109,7 +109,7 @@ router.post("/:id/like", requireAuth, async (req, res) => {
   const userId = req.user.id;
   const liked = post.likes.some(id => id.toString() === userId);
   if (liked) post.likes = post.likes.filter(id => id.toString() !== userId);
-  else { post.likes.push(userId); if (post.author.toString() !== userId) await Notification.create({ recipient: post.author, actor: userId, type: "like", post: post._id }); }
+  else { post.likes.push(userId); if (post.author.toString() !== userId) { const n = await Notification.create({ recipient: post.author, actor: userId, type: "like", post: post._id }); req.app.get("io")?.to("user:" + post.author.toString()).emit("notification:new", { notificationId: n._id }); } }
   await post.save();
   res.json(await populatePost(Post.findById(post._id)));
 });
