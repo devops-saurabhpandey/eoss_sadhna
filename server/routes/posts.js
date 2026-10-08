@@ -1,10 +1,12 @@
 import { Router } from "express";
+import multer from "multer";
 import Post from "../models/Post.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import { requireAuth } from "../middleware/auth.js";
 
 const router = Router();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
 const extractHashtags = text => [...new Set((text.match(/#[a-zA-Z0-9_]+/g) || []).map(tag => tag.slice(1).toLowerCase()))].slice(0, 20);
 const populatePost = query => query.populate("author", "name email bio avatarUrl").populate("comments.user", "name avatarUrl");
 
@@ -16,6 +18,13 @@ router.get("/", requireAuth, async (req, res) => {
 router.get("/saved", requireAuth, async (req, res) => {
   const user = await User.findById(req.user.id).select("savedPosts");
   res.json(await populatePost(Post.find({ _id: { $in: user?.savedPosts || [] } }).sort({ createdAt: -1 })));
+});
+
+router.post("/upload", requireAuth, upload.single("image"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ message: "Image file is required" });
+  if (!["image/jpeg","image/png","image/webp","image/gif"].includes(req.file.mimetype)) return res.status(400).json({ message: "Only JPG, PNG, WEBP or GIF images are allowed" });
+  const imageUrl = "data:" + req.file.mimetype + ";base64," + req.file.buffer.toString("base64");
+  res.status(201).json({ imageUrl });
 });
 
 router.post("/", requireAuth, async (req, res) => {
