@@ -2,95 +2,12 @@ import React, { useEffect, useMemo, useState } from "react";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-const modules = [
-  { key: "dashboard", icon: "⌂", label: "Dashboard" },
-  { key: "tasks", icon: "✓", label: "Tasks" },
-  { key: "rto", icon: "▣", label: "RTO Operations" },
-  { key: "reports", icon: "▤", label: "Reports" },
-  { key: "team", icon: "◉", label: "Team" },
-  { key: "settings", icon: "⚙", label: "Settings" }
-];
-
-const initialTasks = [
-  { id: 1, title: "Review pending RTO reports", owner: "Operations", status: "In Progress", priority: "High" },
-  { id: 2, title: "Prepare branch MIS summary", owner: "MIS", status: "Pending", priority: "Medium" },
-  { id: 3, title: "Verify monthly transactions", owner: "Accounts", status: "Completed", priority: "Low" }
-];
-
-function StatCard({ label, value, note }) {
-  return <div className="stat-card"><span>{label}</span><strong>{value}</strong><small>{note}</small></div>;
-}
-
-export default function App() {
-  const [auth, setAuth] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("eoss_auth")) || null; } catch { return null; }
-  });
-
-  if (!auth) return <Login onLogin={setAuth} />;
-
-  return <Workspace auth={auth} onLogout={() => { localStorage.removeItem("eoss_auth"); setAuth(null); }} />;
-}
-
-function Login({ onLogin }) {
-  const [mode, setMode] = useState("login");
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
-  const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const submit = async (e) => {
-    e.preventDefault();
-    setMessage("");
-    setLoading(true);
-    try {
-      const response = await fetch(API_BASE + "/api/auth/" + mode, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form)
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || "Request failed");
-      if (mode === "register") {
-        setMode("login");
-        setMessage("Registration successful. Now login.");
-      } else {
-        localStorage.setItem("eoss_auth", JSON.stringify(data));
-        onLogin(data);
-      }
-    } catch (error) {
-      setMessage(error.message + " (API: " + API_BASE + ")");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return <div className="login-page">
-    <div className="login-card">
-      <div className="maruti-header"><img className="maruti-logo" src="https://upload.wikimedia.org/wikipedia/commons/8/86/Maruti_Suzuki_logo.svg" alt="Maruti Suzuki" /></div><div className="brand login-brand"><div><b>KTL PVT LTD</b><small>(RTO DEPARTMENT)</small></div></div>
-      <p className="eyebrow">ENTERPRISE OPERATIONS & SUPPORT SYSTEM</p>
-      <h1>{mode === "login" ? "Welcome back" : "Create your account"}</h1>
-      <p className="muted">{mode === "login" ? "Sign in to continue to KTL RTO DEPARTMENT." : "Register a user for the KTL RTO DEPARTMENT workspace."}</p>
-      <form onSubmit={submit}>
-        {mode === "register" && <label>Name<input required value={form.name} onChange={e => setForm({...form,name:e.target.value})} placeholder="Your name" /></label>}
-        <label>Email<input required type="email" value={form.email} onChange={e => setForm({...form,email:e.target.value})} placeholder="name@example.com" /></label>
-        <label>Password<input required minLength="6" type="password" value={form.password} onChange={e => setForm({...form,password:e.target.value})} placeholder="Minimum 6 characters" /></label>
-        <button className="primary login-button" disabled={loading}>{loading ? "Please wait..." : mode === "login" ? "Login" : "Register"}</button>
-      </form>
-      {message && <div className="login-message">{message}</div>}
-      <button className="switch-auth" onClick={() => { setMode(mode === "login" ? "register" : "login"); setMessage(""); }}>
-        {mode === "login" ? "Create a new account" : "Already have an account? Login"}
-      </button>
-    </div>
-  </div>;
-}
-
-
-
 function apiFetch(path, auth, options = {}) {
   return fetch(API_BASE + path, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      Authorization: "Bearer " + auth.token,
+      ...(auth?.token ? { Authorization: "Bearer " + auth.token } : {}),
       ...(options.headers || {})
     }
   }).then(async response => {
@@ -100,361 +17,153 @@ function apiFetch(path, auth, options = {}) {
   });
 }
 
-function Workspace({ auth, onLogout }) {
-  const [active, setActive] = useState("dashboard");
-  const [tasks, setTasks] = useState([]);
+export default function App() {
+  const [auth, setAuth] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("shivasha_auth")) || null; } catch { return null; }
+  });
+  if (!auth) return <Login onLogin={setAuth} />;
+  return <SocialApp auth={auth} setAuth={setAuth} onLogout={() => { localStorage.removeItem("shivasha_auth"); setAuth(null); }} />;
+}
+
+function Login({ onLogin }) {
+  const [mode, setMode] = useState("login");
+  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const submit = async e => {
+    e.preventDefault(); setMessage(""); setLoading(true);
+    try {
+      const data = await apiFetch("/api/auth/" + mode, null, { method: "POST", body: JSON.stringify(form) });
+      if (mode === "register") {
+        setMode("login"); setMessage("Account created. Now login.");
+      } else {
+        localStorage.setItem("shivasha_auth", JSON.stringify(data)); onLogin(data);
+      }
+    } catch (error) { setMessage(error.message); } finally { setLoading(false); }
+  };
+
+  return <div className="login-page">
+    <div className="login-card">
+      <div className="shivasha-logo">S</div>
+      <div className="login-brand"><b>SHIVASHA</b><small>Social • Connect • Share</small></div>
+      <p className="eyebrow">SOCIAL COMMUNITY PLATFORM</p>
+      <h1>{mode === "login" ? "Welcome to SHIVASHA" : "Join SHIVASHA"}</h1>
+      <p className="muted">{mode === "login" ? "Connect with people and share what matters." : "Create your profile and start connecting."}</p>
+      <form onSubmit={submit}>
+        {mode === "register" && <label>Name<input required value={form.name} onChange={e => setForm({...form,name:e.target.value})} placeholder="Your name" /></label>}
+        <label>Email<input required type="email" value={form.email} onChange={e => setForm({...form,email:e.target.value})} placeholder="name@example.com" /></label>
+        <label>Password<input required minLength="6" type="password" value={form.password} onChange={e => setForm({...form,password:e.target.value})} placeholder="Minimum 6 characters" /></label>
+        <button className="primary login-button" disabled={loading}>{loading ? "Please wait..." : mode === "login" ? "Login" : "Create account"}</button>
+      </form>
+      {message && <div className="login-message">{message}</div>}
+      <button className="switch-auth" onClick={() => { setMode(mode === "login" ? "register" : "login"); setMessage(""); }}>
+        {mode === "login" ? "Create a new account" : "Already have an account? Login"}
+      </button>
+    </div>
+  </div>;
+}
+
+function Avatar({ user, large = false }) {
+  const letter = (user?.name || "S").trim().charAt(0).toUpperCase();
+  return user?.avatarUrl ? <img className={large ? "avatar large" : "avatar"} src={user.avatarUrl} alt="" /> : <div className={large ? "avatar large" : "avatar"}>{letter}</div>;
+}
+
+function SocialApp({ auth, setAuth, onLogout }) {
+  const [active, setActive] = useState("home");
+  const [posts, setPosts] = useState([]);
+  const [me, setMe] = useState(auth.user);
+  const [discover, setDiscover] = useState([]);
   const [query, setQuery] = useState("");
-  const [taskLoading, setTaskLoading] = useState(true);
-  const [taskError, setTaskError] = useState("");
-  const [team, setTeam] = useState([]);
-  const [teamLoading, setTeamLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
 
-  const loadTasks = async () => {
-    setTaskLoading(true);
-    setTaskError("");
+  const load = async () => {
+    setLoading(true); setMessage("");
     try {
-      const data = await apiFetch("/api/tasks", auth);
-      setTasks(data);
-    } catch (error) {
-      setTaskError(error.message);
-    } finally {
-      setTaskLoading(false);
-    }
+      const [postData, meData, users] = await Promise.all([
+        apiFetch("/api/posts", auth),
+        apiFetch("/api/users/me", auth),
+        apiFetch("/api/users/discover", auth)
+      ]);
+      setPosts(postData); setMe(meData.user); setDiscover(users);
+      const nextAuth = {...auth, user: meData.user};
+      setAuth(nextAuth); localStorage.setItem("shivasha_auth", JSON.stringify(nextAuth));
+    } catch (e) { setMessage(e.message); } finally { setLoading(false); }
+  };
+  useEffect(() => { load(); }, []);
+
+  const visibleUsers = useMemo(() => discover.filter(u => (u.name + " " + (u.bio || "")).toLowerCase().includes(query.toLowerCase())), [discover, query]);
+
+  const updatePost = post => setPosts(prev => prev.map(p => p._id === post._id ? post : p));
+
+  const createPost = async (text, imageUrl) => {
+    try {
+      const post = await apiFetch("/api/posts", auth, { method: "POST", body: JSON.stringify({text, imageUrl}) });
+      setPosts(prev => [post, ...prev]); setActive("home");
+    } catch (e) { setMessage(e.message); }
   };
 
-  useEffect(() => { loadTasks(); }, []);
-
-  useEffect(() => {
-    if (!["admin", "manager"].includes(auth.user?.role)) return;
-    setTeamLoading(true);
-    apiFetch("/api/users", auth).then(setTeam).catch(() => {}).finally(() => setTeamLoading(false));
-  }, []);
-
-  const filteredTasks = useMemo(
-    () => tasks.filter(t => (t.title + t.description + t.status + t.priority).toLowerCase().includes(query.toLowerCase())),
-    [tasks, query]
-  );
-
-  const addTask = async () => {
-    const title = window.prompt("New task name");
-    if (!title?.trim()) return;
-    const dueDate = window.prompt("Due date (YYYY-MM-DD, optional)", "");
-    if (dueDate && !/^\\d{4}-\\d{2}-\\d{2}$/.test(dueDate)) {
-      setTaskError("Due date must use YYYY-MM-DD format.");
-      return;
-    }
+  const like = async id => { try { updatePost(await apiFetch("/api/posts/" + id + "/like", auth, {method:"POST"})); } catch(e){setMessage(e.message);} };
+  const comment = async (id, text) => { try { updatePost(await apiFetch("/api/posts/" + id + "/comments", auth, {method:"POST",body:JSON.stringify({text})})); } catch(e){setMessage(e.message);} };
+  const follow = async id => {
     try {
-      const task = await apiFetch("/api/tasks", auth, {
-        method: "POST",
-        body: JSON.stringify({ title: title.trim(), priority: "medium", dueDate: dueDate || null })
-      });
-      setTasks(prev => [task, ...prev]);
-      setActive("tasks");
-    } catch (error) {
-      setTaskError(error.message);
-    }
+      await apiFetch("/api/users/" + id + "/follow", auth, {method:"POST"});
+      const users = await apiFetch("/api/users/discover", auth); setDiscover(users);
+      const mine = await apiFetch("/api/users/me", auth); setMe(mine.user);
+    } catch(e){setMessage(e.message);}
   };
 
-  return <div className="app-shell">
+  return <div className="social-shell">
+    <header className="mobile-header"><b>SHIVASHA</b><button onClick={onLogout}>Logout</button></header>
     <aside className="sidebar">
-      <div className="brand"><img className="maruti-logo sidebar-logo" src="https://upload.wikimedia.org/wikipedia/commons/8/86/Maruti_Suzuki_logo.svg" alt="Maruti Suzuki" /><div><b>KTL PVT LTD</b><small>(RTO DEPARTMENT)</small></div></div>
-      <nav>{modules.map(m => <button key={m.key} className={active === m.key ? "nav-item active" : "nav-item"} onClick={() => setActive(m.key)}><span>{m.icon}</span>{m.label}</button>)}</nav>
-      <div className="sidebar-footer">Enterprise Operations<br />& Support System</div>
+      <div className="brand"><div className="brand-mark">S</div><div><b>SHIVASHA</b><small>Social • Connect • Share</small></div></div>
+      <nav>
+        {[["home","⌂","Home"],["discover","◎","Discover"],["create","＋","Create Post"],["profile","◉","Profile"]].map(([key,icon,label]) =>
+          <button key={key} className={active===key?"nav-item active":"nav-item"} onClick={()=>setActive(key)}><span>{icon}</span>{label}</button>
+        )}
+      </nav>
+      <div className="sidebar-user"><Avatar user={me}/><div><b>{me?.name}</b><small>@{(me?.email || "").split("@")[0]}</small></div></div>
+      <button className="logout" onClick={onLogout}>Logout</button>
     </aside>
     <main className="main">
       <header className="topbar">
-        <div><span className="eyebrow">KTL PVT LTD (RTO DEPARTMENT)</span><h1>{modules.find(m => m.key === active)?.label}</h1><small className="welcome-user">Signed in as {auth.user?.name} · {auth.user?.role}</small></div>
-        <div className="top-actions"><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search..." /><button className="primary" onClick={addTask}>+ New Task</button><button className="logout" onClick={onLogout}>Logout</button></div>
+        <div><span className="eyebrow">SHIVASHA</span><h1>{active==="home"?"Home":active==="discover"?"Discover":active==="create"?"Create Post":"My Profile"}</h1></div>
+        <div className="top-actions"><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search people..." /><Avatar user={me}/></div>
       </header>
-      {taskError && <div className="api-error">{taskError}</div>}
-      {active === "dashboard" && <Dashboard tasks={tasks} setActive={setActive} loading={taskLoading} teamCount={teamLoading ? "…" : team.length} />}
-      {active === "tasks" && <Tasks tasks={filteredTasks} loading={taskLoading} auth={auth} onChanged={changed => setTasks(prev => changed.__deleted ? prev.filter(t => t._id !== changed._id) : prev.map(t => t._id === changed._id ? changed : t))} />}
-      {active === "rto" && <RTOOperations tasks={tasks} auth={auth} />}
-      {active === "reports" && <Reports tasks={tasks} auth={auth} />}
-      {active === "team" && <Team auth={auth} team={team} setTeam={setTeam} />}
-      {active === "settings" && <Settings />}
+      {message && <div className="api-error">{message}</div>}
+      {active==="home" && <section className="content"><div className="feed-head"><div><h2>Your Feed</h2><p>Latest posts from the SHIVASHA community.</p></div><button className="primary" onClick={()=>setActive("create")}>+ Create</button></div>{loading?<div className="empty">Loading feed...</div>:posts.length?posts.map(p=><PostCard key={p._id} post={p} me={me} onLike={like} onComment={comment}/>):<div className="panel empty">No posts yet. Create the first SHIVASHA post.</div>}</section>}
+      {active==="create" && <CreatePost onCreate={createPost}/>}
+      {active==="discover" && <Discover users={visibleUsers} me={me} onFollow={follow}/>}
+      {active==="profile" && <Profile me={me} posts={posts.filter(p=>p.author?._id===me?._id: p.author===me?._id)} auth={auth} onSaved={u=>{setMe(u);setAuth({...auth,user:u});localStorage.setItem("shivasha_auth",JSON.stringify({...auth,user:u}));}}/>}
     </main>
   </div>;
 }
 
-function Dashboard({ tasks, setActive, loading, teamCount }) {
-  const completed = tasks.filter(t => t.status === "completed").length;
-  return <section className="content"><div className="hero"><div><p className="eyebrow">ENTERPRISE OPERATIONS</p><h2>Good work starts with clear operations.</h2><p>Track tasks, teams and business reports from one simple workspace.</p></div><button className="secondary" onClick={() => setActive("reports")}>View Reports →</button></div><div className="stats"><StatCard label="Open Tasks" value={tasks.length - completed} note="Across operations" /><StatCard label="Completed" value={completed} note="This workspace" /><StatCard label="Team Members" value={teamCount} note="Registered users" /><StatCard label="Reports" value="8" note="Ready to review" /></div><div className="grid-two"><div className="panel"><div className="panel-head"><h3>Recent Tasks</h3><button onClick={() => setActive("tasks")}>View all</button></div>{loading ? <div className="empty">Loading tasks...</div> : tasks.slice(0,4).map(t => <TaskRow key={t._id} task={t} />)}</div><div className="panel"><div className="panel-head"><h3>Quick Actions</h3></div><div className="quick-grid"><button onClick={() => setActive("tasks")}>✓<span>Manage Tasks</span></button><button onClick={() => setActive("reports")}>▤<span>Open Reports</span></button><button onClick={() => setActive("team")}>◉<span>Team</span></button><button onClick={() => setActive("settings")}>⚙<span>Settings</span></button></div></div></div></section>;
+function PostCard({post,me,onLike,onComment}) {
+  const [text,setText]=useState("");
+  const liked=post.likes?.some(id => (id._id||id).toString()===(me?.id||me?._id)?.toString());
+  return <article className="post-card">
+    <div className="post-author"><Avatar user={post.author}/><div><b>{post.author?.name}</b><small>{new Date(post.createdAt).toLocaleString()}</small></div></div>
+    {post.text && <p className="post-text">{post.text}</p>}
+    {post.imageUrl && <img className="post-image" src={post.imageUrl} alt="Post" />}
+    <div className="post-actions"><button className={liked?"liked":""} onClick={()=>onLike(post._id)}>♥ {post.likes?.length||0}</button><span>💬 {post.comments?.length||0}</span></div>
+    <div className="comments">{post.comments?.slice(-3).map(c=><div className="comment" key={c._id}><b>{c.user?.name}</b> {c.text}</div>)}</div>
+    <form className="comment-form" onSubmit={e=>{e.preventDefault();if(text.trim()){onComment(post._id,text.trim());setText("");}}}><input value={text} onChange={e=>setText(e.target.value)} placeholder="Write a comment..." /><button>Post</button></form>
+  </article>;
 }
 
-function TaskRow({ task }) {
-  const status = task.status === "in-progress" ? "In Progress" : task.status[0].toUpperCase() + task.status.slice(1);
-  const priority = task.priority[0].toUpperCase() + task.priority.slice(1);
-  const due = task.dueDate ? new Date(task.dueDate) : null;
-  const overdue = due && due < new Date() && task.status !== "completed";
-  return <div className="task-row"><div><b>{task.title}</b><small>{priority} priority{due ? " · Due " + due.toLocaleDateString() : ""}{overdue ? " · OVERDUE" : ""}</small></div><span className={"status " + task.status}>{status}</span></div>;
+function CreatePost({onCreate}) {
+  const [text,setText]=useState(""); const [imageUrl,setImageUrl]=useState("");
+  return <section className="content narrow"><div className="panel"><div className="panel-head"><h2>Create a Post</h2></div><textarea className="post-composer" value={text} onChange={e=>setText(e.target.value)} placeholder="What do you want to share?" maxLength="2000"/><label>Image URL (optional)<input value={imageUrl} onChange={e=>setImageUrl(e.target.value)} placeholder="https://example.com/image.jpg"/></label><button className="primary" disabled={!text.trim()&&!imageUrl.trim()} onClick={()=>onCreate(text.trim(),imageUrl.trim())}>Publish Post</button></div></section>;
 }
 
-function Tasks({ tasks, loading, auth, onChanged }) {
-  const [team, setTeam] = useState([]);
-  const canAssign = ["admin", "manager"].includes(auth.user?.role);
-
-  const editTask = async (task) => {
-    const title = window.prompt("Task title", task.title);
-    if (!title?.trim()) return;
-    const description = window.prompt("Description", task.description || "");
-    const dueDate = window.prompt("Due date (YYYY-MM-DD, optional)", task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 10) : "");
-    if (dueDate && !/^\\d{4}-\\d{2}-\\d{2}$/.test(dueDate)) {
-      alert("Due date must use YYYY-MM-DD format.");
-      return;
-    }
-    await updateTask(task._id, { title: title.trim(), description, dueDate: dueDate || null });
-  };
-
-  useEffect(() => {
-    if (canAssign) apiFetch("/api/users", auth).then(setTeam).catch(() => {});
-  }, []);
-
-  const updateTask = async (id, updates) => {
-    try {
-      const updated = await apiFetch("/api/tasks/" + id, auth, { method: "PATCH", body: JSON.stringify(updates) });
-      onChanged(updated);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const deleteTask = async (id) => {
-    if (!window.confirm("Delete this task?")) return;
-    try {
-      await apiFetch("/api/tasks/" + id, auth, { method: "DELETE" });
-      onChanged({ _id: id, __deleted: true });
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  return <section className="content"><div className="panel"><div className="panel-head"><h3>Task Management</h3><span>{tasks.length} items</span></div>{loading ? <div className="empty">Loading tasks...</div> : tasks.length ? tasks.map(t =>
-    <div className="task-row" key={t._id}>
-      <div><b>{t.title}</b><small>{t.description || "No description"} · {t.priority} priority</small></div>
-      {canAssign && <select value={t.assignedTo || ""} onChange={e => updateTask(t._id, { assignedTo: e.target.value || null })}><option value="">Unassigned</option>{team.map(user => <option key={user._id} value={user._id}>{user.name} · {user.role}</option>)}</select>}
-      <select value={t.status} onChange={e => updateTask(t._id, { status: e.target.value })}>
-        <option value="pending">Pending</option><option value="in-progress">In Progress</option><option value="completed">Completed</option>
-      </select>
-      <select value={t.priority} onChange={e => updateTask(t._id, { priority: e.target.value })}>
-        <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>
-      </select>
-      <button className="secondary" onClick={() => editTask(t)}>Edit</button><button className="logout" onClick={() => deleteTask(t._id)}>Delete</button>
-    </div>
-  ) : <div className="empty">No tasks yet. Use + New Task to create one.</div>}</div></section>;
+function Discover({users,me,onFollow}) {
+  return <section className="content"><div className="feed-head"><div><h2>Discover People</h2><p>Find people and grow your SHIVASHA network.</p></div></div><div className="people-grid">{users.map(u=>{const following=u.followers?.some(id=>(id._id||id).toString()===(me?.id||me?._id)?.toString());return <div className="person-card" key={u._id}><Avatar user={u} large/><h3>{u.name}</h3><p>{u.bio||"SHIVASHA member"}</p><small>{u.followers?.length||0} followers</small><button className={following?"secondary":"primary"} onClick={()=>onFollow(u._id)}>{following?"Following":"Follow"}</button></div>})}</div></section>;
 }
 
-function RTOOperations({ auth }) {
-  const [records, setRecords] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
-  const [editingId, setEditingId] = useState(null);
-  const [filterBranch, setFilterBranch] = useState("All");
-  const [filterReg, setFilterReg] = useState("All");
-  const [filterTxn, setFilterTxn] = useState("All");
-  const emptyForm = { vehicleNo: "", branch: "", registrationStatus: "Pending Registration", transactionStatus: "Pending" };
-  const [form, setForm] = useState(emptyForm);
-  const canManage = ["admin", "manager"].includes(auth.user?.role);
-
-  const loadRecords = async () => {
-    setLoading(true);
-    try { setRecords(await apiFetch("/api/rto", auth)); }
-    catch (error) { setMessage(error.message); }
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => { loadRecords(); }, []);
-
-  const save = async (e) => {
-    e.preventDefault();
-    if (!form.vehicleNo.trim() || !form.branch.trim()) return;
-    try {
-      const url = editingId ? "/api/rto/" + editingId : "/api/rto";
-      const record = await apiFetch(url, auth, { method: editingId ? "PATCH" : "POST", body: JSON.stringify(form) });
-      setRecords(prev => editingId ? prev.map(r => r._id === editingId ? record : r) : [record, ...prev]);
-      setForm(emptyForm); setEditingId(null);
-      setMessage(editingId ? "RTO record updated." : "RTO record saved.");
-    } catch (error) { setMessage(error.message); }
-  };
-
-  const edit = (record) => {
-    setEditingId(record._id);
-    setForm({ vehicleNo: record.vehicleNo, branch: record.branch, registrationStatus: record.registrationStatus, transactionStatus: record.transactionStatus });
-    setMessage("");
-  };
-
-  const remove = async (id) => {
-    if (!window.confirm("Delete this RTO record?")) return;
-    try {
-      await apiFetch("/api/rto/" + id, auth, { method: "DELETE" });
-      setRecords(prev => prev.filter(r => r._id !== id));
-      if (editingId === id) { setEditingId(null); setForm(emptyForm); }
-    } catch (error) { setMessage(error.message); }
-  };
-
-  const branches = [...new Set(records.map(r => r.branch).filter(Boolean))].sort();
-  const filtered = records.filter(r =>
-    (filterBranch === "All" || r.branch === filterBranch) &&
-    (filterReg === "All" || r.registrationStatus === filterReg) &&
-    (filterTxn === "All" || r.transactionStatus === filterTxn)
-  );
-  const pending = filtered.filter(r => r.registrationStatus === "Pending Registration").length;
-  const inProcess = filtered.filter(r => r.registrationStatus === "In Process").length;
-  const completed = filtered.filter(r => r.registrationStatus === "Completed").length;
-  const transactions = filtered.filter(r => r.transactionStatus === "Completed").length;
-
-  const exportCsv = () => {
-    const headers = ["Vehicle No", "Branch", "Registration Status", "Transaction Status", "Created At"];
-    const rows = filtered.map(r => [r.vehicleNo, r.branch, r.registrationStatus, r.transactionStatus, new Date(r.createdAt).toLocaleString()]);
-    const csv = [headers, ...rows].map(row => row.map(v => '"' + String(v ?? "").replaceAll('"', '""') + '"').join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = "KTL-RTO-Records.csv"; a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  return <section className="content">
-    <div className="hero"><div><p className="eyebrow">KTL RTO OPERATIONS</p><h2>Vehicle Registration & RTO Work Tracking</h2><p>Branch-wise registration, RC status and transaction progress.</p></div></div>
-    <div className="stats">
-      <StatCard label="Total Records" value={filtered.length} note={canManage ? "All department records" : "My records"} />
-      <StatCard label="Pending Registration" value={pending} note="Needs action" />
-      <StatCard label="In Process" value={inProcess} note="Work in progress" />
-      <StatCard label="Completed" value={completed} note="Registration completed" />
-      <StatCard label="Transactions Done" value={transactions} note="Transaction status" />
-    </div>
-    <div className="panel">
-      <div className="panel-head"><h3>RTO Filters</h3><span>{filtered.length} records</span></div>
-      <div className="filter-row">
-        <label>Branch<select value={filterBranch} onChange={e=>setFilterBranch(e.target.value)}><option>All</option>{branches.map(b=><option key={b}>{b}</option>)}</select></label>
-        <label>Registration Status<select value={filterReg} onChange={e=>setFilterReg(e.target.value)}><option>All</option><option>Pending Registration</option><option>In Process</option><option>Completed</option></select></label>
-        <label>Transaction Status<select value={filterTxn} onChange={e=>setFilterTxn(e.target.value)}><option>All</option><option>Pending</option><option>Completed</option></select></label>
-        <button className="primary" onClick={exportCsv} disabled={!filtered.length}>Export CSV</button>
-      </div>
-    </div>
-    <div className="grid-two">
-      <div className="panel"><div className="panel-head"><h3>{editingId ? "Edit RTO Record" : "Add RTO Record"}</h3><span>{auth.user?.role}</span></div>
-        <form onSubmit={save}>
-          <label>Vehicle Number<input required value={form.vehicleNo} onChange={e=>setForm({...form,vehicleNo:e.target.value.toUpperCase()})} placeholder="UP32 AB 1234" /></label>
-          <label>Branch<input required value={form.branch} onChange={e=>setForm({...form,branch:e.target.value})} placeholder="Branch name" /></label>
-          <label>Registration Status<select value={form.registrationStatus} onChange={e=>setForm({...form,registrationStatus:e.target.value})}><option>Pending Registration</option><option>In Process</option><option>Completed</option></select></label>
-          <label>Transaction Status<select value={form.transactionStatus} onChange={e=>setForm({...form,transactionStatus:e.target.value})}><option>Pending</option><option>Completed</option></select></label>
-          <div className="button-row"><button className="primary">{editingId ? "Update RTO Record" : "Save RTO Record"}</button>{editingId && <button type="button" className="logout" onClick={()=>{setEditingId(null);setForm(emptyForm)}}>Cancel</button>}</div>
-        </form>
-        {message && <div className="login-message">{message}</div>}
-      </div>
-      <div className="panel"><div className="panel-head"><h3>Recent RTO Records</h3><span>{records.length}</span></div>
-        {loading ? <div className="empty">Loading RTO records...</div> : filtered.length ? filtered.slice(0,12).map(r=><div className="task-row" key={r._id}><div><b>{r.vehicleNo}</b><small>{r.branch} · {r.registrationStatus} · Transaction: {r.transactionStatus}</small></div><div className="button-row"><button className="logout" onClick={()=>edit(r)}>Edit</button><button className="logout" onClick={()=>remove(r._id)}>Delete</button></div></div>) : <div className="empty">No RTO records match the selected filters.</div>}
-      </div>
-    </div>
-  </section>;
+function Profile({me,posts,auth,onSaved}) {
+  const [name,setName]=useState(me?.name||""); const [bio,setBio]=useState(me?.bio||""); const [avatarUrl,setAvatarUrl]=useState(me?.avatarUrl||""); const [saved,setSaved]=useState("");
+  const save=async()=>{try{const r=await apiFetch("/api/users/me",auth,{method:"PATCH",body:JSON.stringify({name,bio,avatarUrl})});onSaved(r.user);setSaved("Profile saved");}catch(e){setSaved(e.message);}};
+  return <section className="content narrow"><div className="profile-hero"><Avatar user={{...me,avatarUrl,name}} large/><div><h2>{name}</h2><p>{bio||"Welcome to SHIVASHA."}</p><div className="profile-stats"><b>{me?.followers?.length||0}<small>Followers</small></b><b>{me?.following?.length||0}<small>Following</small></b><b>{posts.length}<small>Posts</small></b></div></div></div><div className="panel"><h3>Edit Profile</h3><label>Name<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Bio<textarea value={bio} onChange={e=>setBio(e.target.value)} maxLength="280"/></label><label>Avatar URL<input value={avatarUrl} onChange={e=>setAvatarUrl(e.target.value)} placeholder="https://example.com/avatar.jpg"/></label><button className="primary" onClick={save}>Save Profile</button>{saved&&<span className="save-message">{saved}</span>}</div></section>;
 }
-
-function Reports({ tasks, auth }) {
-  const [rtoRecords, setRtoRecords] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [branchFilter, setBranchFilter] = useState("All");
-  const [statusFilter, setStatusFilter] = useState("All");
-
-  const total = tasks.length;
-  const completed = tasks.filter(t => t.status === "completed").length;
-  const inProgress = tasks.filter(t => t.status === "in-progress").length;
-  const pending = tasks.filter(t => t.status === "pending").length;
-  const overdue = tasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== "completed").length;
-  const high = tasks.filter(t => t.priority === "high").length;
-  const completion = total ? Math.round((completed / total) * 100) : 0;
-
-  useEffect(() => {
-    let active = true;
-    apiFetch("/api/rto", auth)
-      .then(data => { if (active) setRtoRecords(data); })
-      .catch(err => { if (active) setError(err.message); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [auth]);
-
-  const branches = [...new Set(rtoRecords.map(r => r.branch).filter(Boolean))].sort();
-  const filtered = rtoRecords.filter(r =>
-    (branchFilter === "All" || r.branch === branchFilter) &&
-    (statusFilter === "All" || r.registrationStatus === statusFilter)
-  );
-  const branchRows = [...new Set(filtered.map(r => r.branch).filter(Boolean))].sort().map(branch => {
-    const rows = filtered.filter(r => r.branch === branch);
-    return {
-      branch,
-      total: rows.length,
-      pending: rows.filter(r => r.registrationStatus === "Pending Registration").length,
-      inProcess: rows.filter(r => r.registrationStatus === "In Process").length,
-      completed: rows.filter(r => r.registrationStatus === "Completed").length,
-      transactionPending: rows.filter(r => r.transactionStatus === "Pending").length,
-      transactionCompleted: rows.filter(r => r.transactionStatus === "Completed").length
-    };
-  });
-
-  const exportCsv = () => {
-    const headers = ["Branch", "Total", "Pending", "In Process", "Completed", "Transaction Pending", "Transaction Done"];
-    const rows = branchRows.map(r => [r.branch, r.total, r.pending, r.inProcess, r.completed, r.transactionPending, r.transactionCompleted]);
-    const csv = [headers, ...rows].map(row => row.map(v => '"' + String(v).replaceAll('"', '""') + '"').join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "KTL-RTO-Branch-MIS.csv";
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  return <section className="content">
-    <div className="hero"><div><p className="eyebrow">KTL RTO MIS</p><h2>Reports & Management Information</h2><p>Task performance and branch-wise RTO operational reporting.</p></div></div>
-    <div className="stats">
-      <StatCard label="Total Tasks" value={total} note="Current records" />
-      <StatCard label="Completed" value={completed} note={completion + "% completion"} />
-      <StatCard label="In Progress" value={inProgress} note="Active work" />
-      <StatCard label="Pending" value={pending} note="Awaiting action" />
-      <StatCard label="Overdue" value={overdue} note="Past due date" />
-      <StatCard label="High Priority" value={high} note="Needs attention" />
-    </div>
-    <div className="panel">
-      <div className="panel-head"><h3>Branch-wise RTO MIS</h3><span>{loading ? "Loading..." : filtered.length + " records"}</span></div>
-      <div className="filter-row">
-        <label>Branch<select value={branchFilter} onChange={e=>setBranchFilter(e.target.value)}><option>All</option>{branches.map(b=><option key={b}>{b}</option>)}</select></label>
-        <label>Registration Status<select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option>All</option><option>Pending Registration</option><option>In Process</option><option>Completed</option></select></label>
-        <button className="primary" onClick={exportCsv} disabled={!branchRows.length}>Export CSV</button>
-      </div>
-      {error && <div className="login-message">{error}</div>}
-      {!loading && branchRows.length > 0 ? <div className="table-wrap"><table><thead><tr><th>Branch</th><th>Total</th><th>Pending</th><th>In Process</th><th>Completed</th><th>Txn Pending</th><th>Txn Done</th></tr></thead><tbody>{branchRows.map(row => <tr key={row.branch}><td><b>{row.branch}</b></td><td>{row.total}</td><td>{row.pending}</td><td>{row.inProcess}</td><td>{row.completed}</td><td>{row.transactionPending}</td><td>{row.transactionCompleted}</td></tr>)}</tbody></table></div> : !loading ? <div className="empty">No RTO records match the selected filters.</div> : null}
-    </div>
-    <div className="panel"><div className="panel-head"><h3>Task MIS Summary</h3><span>{auth.user?.role}</span></div>
-      <div className="report-list">
-        <div className="task-row"><div><b>Completion Rate</b><small>Completed tasks ÷ total tasks</small></div><strong>{completion}%</strong></div>
-        <div className="task-row"><div><b>Workload Status</b><small>{completed} completed · {inProgress} in progress · {pending} pending</small></div><strong>{total}</strong></div>
-        <div className="task-row"><div><b>Risk Items</b><small>Overdue and high-priority tasks</small></div><strong>{overdue + high}</strong></div>
-      </div>
-    </div>
-  </section>;
-}
-
-function Team({ auth, team, setTeam }) {
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
-  const canManage = ["admin", "manager"].includes(auth.user?.role);
-
-  useEffect(() => {
-    if (!canManage) { setLoading(false); return; }
-    apiFetch("/api/users", auth).then(setTeam).catch(error => setMessage(error.message)).finally(() => setLoading(false));
-  }, []);
-
-  const changeRole = async (id, role) => {
-    try {
-      const updated = await apiFetch("/api/users/" + id + "/role", auth, { method: "PATCH", body: JSON.stringify({ role }) });
-      setTeam(prev => prev.map(user => user._id === id ? updated : user));
-      setMessage("Role updated successfully.");
-    } catch (error) { setMessage(error.message); }
-  };
-
-  if (!canManage) return <section className="content"><div className="panel"><h3>Team Directory</h3><div className="empty">Only managers and admins can view the team directory.</div></div></section>;
-  return <section className="content"><div className="panel"><div className="panel-head"><h3>Team Directory</h3><span>{team.length} users</span></div>{message && <div className="login-message">{message}</div>}{loading ? <div className="empty">Loading team...</div> : team.length ? team.map(user =>
-    <div className="team-row" key={user._id}><div className="avatar">{user.name?.charAt(0).toUpperCase()}</div><div><b>{user.name}</b><small>{user.email}</small></div><select value={user.role} onChange={e => changeRole(user._id, e.target.value)} disabled={auth.user?.role !== "admin" || user._id === auth.user?.id}><option value="employee">Employee</option><option value="manager">Manager</option><option value="admin">Admin</option></select></div>
-  ) : <div className="empty">No team members found.</div>}</div></section>;
-}
-function Settings() { return <section className="content"><div className="panel settings"><h3>Workspace Settings</h3><label>Organization name<input defaultValue="KTL PVT LTD" /></label><label>Product name<input defaultValue="KTL RTO DEPARTMENT" /></label><label>Environment<select defaultValue="Development"><option>Development</option><option>Production</option></select></label><button className="primary">Save Settings</button></div></section>; }
