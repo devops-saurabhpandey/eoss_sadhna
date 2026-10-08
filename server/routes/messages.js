@@ -15,7 +15,12 @@ router.get("/conversations", requireAuth, async (req, res) => {
   const conversations = await populateConversation(
     Conversation.find({ participants: req.user.id }).sort({ updatedAt: -1 })
   );
-  res.json(conversations);
+  const unreadRows = await Message.aggregate([
+    { $match: { conversation: { $in: conversations.map(c => c._id) }, sender: { $ne: new (await import("mongoose")).default.Types.ObjectId(req.user.id) }, readBy: { $ne: new (await import("mongoose")).default.Types.ObjectId(req.user.id) } } },
+    { $group: { _id: "$conversation", count: { $sum: 1 } } }
+  ]);
+  const counts = new Map(unreadRows.map(row => [row._id.toString(), row.count]));
+  res.json(conversations.map(c => ({ ...c.toObject(), unreadCount: counts.get(c._id.toString()) || 0 })));
 });
 
 router.post("/conversations", requireAuth, async (req, res) => {
