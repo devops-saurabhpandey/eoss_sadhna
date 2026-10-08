@@ -2,6 +2,7 @@ import express from "express";
 import User from "../models/User.js";
 import Post from "../models/Post.js";
 import Notification from "../models/Notification.js";
+import Report from "../models/Report.js";
 import { requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -89,14 +90,15 @@ router.post("/:id/report", requireAuth, async (req, res) => {
   const target = await User.findById(req.params.id).select("_id");
   if (!target) return res.status(404).json({ message: "User not found" });
   const reason = String(req.body?.reason || "other").trim().slice(0, 100);
-  console.warn("[SHIVASHA REPORT]", { reporter: req.user.id, target: target._id.toString(), reason });
+  await Report.create({ reporter: req.user.id, target: target._id, reason });
   res.status(201).json({ reported: true });
 });
 
 router.get("/admin/reports", requireAuth, async (req, res) => {
   const me = await User.findById(req.user.id).select("role");
   if (!me || me.role !== "admin") return res.status(403).json({ message: "Admin access required" });
-  res.json({ reports: [] });
+  const reports = await Report.find().populate("reporter", "name email").populate("target", "name email avatarUrl").sort({ createdAt: -1 }).limit(200);
+  res.json({ reports });
 });
 
 export default router;
