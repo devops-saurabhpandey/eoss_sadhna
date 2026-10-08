@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: ktl-rto-api
+    name: shivasha-api
     runtime: node
     rootDir: server
     buildCommand: npm install
