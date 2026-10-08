@@ -1,5 +1,6 @@
 import { Router } from "express";
 import Post from "../models/Post.js";
+import Notification from "../models/Notification.js";
 import { requireAuth } from "../middleware/auth.js";
 
 const router = Router();
@@ -27,8 +28,14 @@ router.post("/:id/like", requireAuth, async (req, res) => {
   if (!post) return res.status(404).json({ message: "Post not found" });
   const userId = req.user.id;
   const liked = post.likes.some(id => id.toString() === userId);
-  if (liked) post.likes = post.likes.filter(id => id.toString() !== userId);
-  else post.likes.push(userId);
+  if (liked) {
+    post.likes = post.likes.filter(id => id.toString() !== userId);
+  } else {
+    post.likes.push(userId);
+    if (post.author.toString() !== userId) {
+      await Notification.create({ recipient: post.author, actor: userId, type: "like", post: post._id });
+    }
+  }
   await post.save();
   const result = await populatePost(Post.findById(post._id));
   res.json(result);
@@ -41,6 +48,9 @@ router.post("/:id/comments", requireAuth, async (req, res) => {
   if (!post) return res.status(404).json({ message: "Post not found" });
   post.comments.push({ user: req.user.id, text });
   await post.save();
+  if (post.author.toString() !== req.user.id) {
+    await Notification.create({ recipient: post.author, actor: req.user.id, type: "comment", post: post._id });
+  }
   const result = await populatePost(Post.findById(post._id));
   res.json(result);
 });
