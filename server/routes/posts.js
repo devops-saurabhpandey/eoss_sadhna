@@ -6,20 +6,15 @@ import Notification from "../models/Notification.js";
 import { requireAuth } from "../middleware/auth.js";
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 6 } });
 const extractHashtags = text => [...new Set((text.match(/#[a-zA-Z0-9_]+/g) || []).map(tag => tag.slice(1).toLowerCase()))].slice(0, 20);
 const populatePost = query => query.populate("author", "name email bio avatarUrl").populate("comments.user", "name avatarUrl");
 
 async function uploadImage(file) {
-  if (!file) throw new Error("Image file is required");
   if (!["image/jpeg","image/png","image/webp","image/gif"].includes(file.mimetype)) throw new Error("Only JPG, PNG, WEBP or GIF images are allowed");
   if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
     const { v2: cloudinary } = await import("cloudinary");
-    cloudinary.config({
-      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-      api_key: process.env.CLOUDINARY_API_KEY,
-      api_secret: process.env.CLOUDINARY_API_SECRET
-    });
+    cloudinary.config({ cloud_name: process.env.CLOUDINARY_CLOUD_NAME, api_key: process.env.CLOUDINARY_API_KEY, api_secret: process.env.CLOUDINARY_API_SECRET });
     return new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
         { folder: "shivasha/posts", resource_type: "image", transformation: [{ width: 1600, height: 1600, crop: "limit", quality: "auto", fetch_format: "auto" }] },
@@ -41,10 +36,11 @@ router.get("/saved", requireAuth, async (req, res) => {
   res.json(await populatePost(Post.find({ _id: { $in: user?.savedPosts || [] } }).sort({ createdAt: -1 })));
 });
 
-router.post("/upload", requireAuth, upload.single("image"), async (req, res) => {
+router.post("/upload", requireAuth, upload.array("images", 6), async (req, res) => {
   try {
-    const imageUrl = await uploadImage(req.file);
-    res.status(201).json({ imageUrl, storage: imageUrl.startsWith("data:") ? "database-fallback" : "cloudinary" });
+    if (!req.files?.length) return res.status(400).json({ message: "At least one image is required" });
+    const imageUrls = await Promise.all(req.files.map(uploadImage));
+    res.status(201).json({ imageUrls, storage: imageUrls[0].startsWith("data:") ? "database-fallback" : "cloudinary" });
   } catch (error) {
     res.status(400).json({ message: error.message || "Image upload failed" });
   }
@@ -52,9 +48,11 @@ router.post("/upload", requireAuth, upload.single("image"), async (req, res) => 
 
 router.post("/", requireAuth, async (req, res) => {
   const text = String(req.body.text || "").trim();
+  const requestedImages = Array.isArray(req.body.images) ? req.body.images.filter(Boolean).slice(0, 6) : [];
   const imageUrl = String(req.body.imageUrl || "").trim();
-  if (!text && !imageUrl) return res.status(400).json({ message: "Post text or image is required" });
-  const post = await Post.create({ author: req.user.id, text, imageUrl, hashtags: extractHashtags(text) });
+  const images = requestedImages.length ? requestedImages : (imageUrl ? [imageUrl] : []);
+  if (!text && !images.length) return res.status(400).json({ message: "Post text or image is required" });
+  const post = await Post.create({ author: req.user.id, text, imageUrl: images[0] || "", images, hashtags: extractHashtags(text) });
   res.status(201).json(await populatePost(Post.findById(post._id)));
 });
 
