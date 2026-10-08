@@ -1,25 +1,24 @@
-import { Router } from "express";
+import express from "express";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import { requireAuth } from "../middleware/auth.js";
 
-const router = Router();
+const router = express.Router();
 
 router.get("/me", requireAuth, async (req, res) => {
   const user = await User.findById(req.user.id).select("-passwordHash");
-  if (!user) return res.status(404).json({ message: "User not found" });
   res.json({ user });
 });
 
 router.patch("/me", requireAuth, async (req, res) => {
-  const allowed = ["name", "bio", "avatarUrl"];
-  const updates = {};
-  for (const key of allowed) {
-    if (req.body[key] !== undefined) updates[key] = String(req.body[key]).trim();
-  }
-  if (updates.name !== undefined && !updates.name) return res.status(400).json({ message: "Name is required" });
-  const user = await User.findByIdAndUpdate(req.user.id, updates, { new: true, runValidators: true }).select("-passwordHash");
-  res.json({ user });
+  const { name, bio, avatarUrl } = req.body;
+  const user = await User.findById(req.user.id);
+  if (!user) return res.status(404).json({ message: "User not found" });
+  if (typeof name === "string" && name.trim()) user.name = name.trim();
+  if (typeof bio === "string") user.bio = bio.trim().slice(0, 280);
+  if (typeof avatarUrl === "string") user.avatarUrl = avatarUrl.trim();
+  await user.save();
+  res.json({ user: await User.findById(user._id).select("-passwordHash") });
 });
 
 router.get("/discover", requireAuth, async (req, res) => {
@@ -30,11 +29,24 @@ router.get("/discover", requireAuth, async (req, res) => {
   res.json(users);
 });
 
+router.get("/search", requireAuth, async (req, res) => {
+  const q = String(req.query.q || "").trim();
+  if (q.length < 2) return res.json([]);
+  const users = await User.find({
+    _id: { $ne: req.user.id },
+    $or: [
+      { name: { $regex: q, $options: "i" } },
+      { bio: { $regex: q, $options: "i" } },
+      { email: { $regex: q, $options: "i" } }
+    ]
+  }).select("-passwordHash").limit(30);
+  res.json(users);
+});
+
 router.post("/:id/follow", requireAuth, async (req, res) => {
   if (req.params.id === req.user.id) return res.status(400).json({ message: "You cannot follow yourself" });
-  const target = await User.findById(req.params.id);
-  const me = await User.findById(req.user.id);
-  if (!target || !me) return res.status(404).json({ message: "User not found" });
+  const [me, target] = await Promise.all([User.findById(req.user.id), User.findById(req.params.id)]);
+  if (!me || !target) return res.status(404).json({ message: "User not found" });
   const following = me.following.some(id => id.toString() === target._id.toString());
   if (following) {
     me.following = me.following.filter(id => id.toString() !== target._id.toString());
@@ -46,7 +58,7 @@ router.post("/:id/follow", requireAuth, async (req, res) => {
     await Notification.create({ recipient: target._id, actor: me._id, type: "follow" });
   }
   await Promise.all([me.save(), target.save()]);
-  res.json({ following: !following, followers: target.followers.length, followingCount: me.following.length });
+  res.json({ following: !following });
 });
 
 export default router;
