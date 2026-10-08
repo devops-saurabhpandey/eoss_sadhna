@@ -67,7 +67,7 @@ router.post("/:id/follow", requireAuth, async (req, res) => {
   } else {
     me.following.push(target._id);
     target.followers.push(me._id);
-    await Notification.create({ recipient: target._id, actor: me._id, type: "follow" });
+    const n = await Notification.create({ recipient: target._id, actor: me._id, type: "follow" }); req.app.get("io")?.to("user:" + target._id.toString()).emit("notification:new", { notificationId: n._id });
   }
   await Promise.all([me.save(), target.save()]);
   res.json({ following: !following });
