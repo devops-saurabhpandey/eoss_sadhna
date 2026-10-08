@@ -93,4 +93,10 @@ router.post("/:id/report", requireAuth, async (req, res) => {
   res.status(201).json({ reported: true });
 });
 
+router.get("/admin/reports", requireAuth, async (req, res) => {
+  const me = await User.findById(req.user.id).select("role");
+  if (!me || me.role !== "admin") return res.status(403).json({ message: "Admin access required" });
+  res.json({ reports: [] });
+});
+
 export default router;
