@@ -106,6 +106,11 @@ function SocialApp({ auth, setAuth, onLogout }) {
 
   const like = async id => { try { updatePost(await apiFetch("/api/posts/" + id + "/like", auth, {method:"POST"})); } catch(e){setMessage(e.message);} };
   const comment = async (id, text) => { try { updatePost(await apiFetch("/api/posts/" + id + "/comments", auth, {method:"POST",body:JSON.stringify({text})})); } catch(e){setMessage(e.message);} };
+  const deletePost = async id => {
+    if (!window.confirm("Delete this post?")) return;
+    try { await apiFetch("/api/posts/" + id, auth, {method:"DELETE"}); setPosts(prev => prev.filter(p => p._id !== id)); }
+    catch(e) { setMessage(e.message); }
+  };
   const follow = async id => {
     try {
       await apiFetch("/api/users/" + id + "/follow", auth, {method:"POST"});
@@ -132,7 +137,7 @@ function SocialApp({ auth, setAuth, onLogout }) {
         <div className="top-actions"><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search people..." /><Avatar user={me}/></div>
       </header>
       {message && <div className="api-error">{message}</div>}
-      {active==="home" && <section className="content"><div className="feed-head"><div><h2>Your Feed</h2><p>Latest posts from the SHIVASHA community.</p></div><button className="primary" onClick={()=>setActive("create")}>+ Create</button></div>{loading?<div className="empty">Loading feed...</div>:posts.length?posts.map(p=><PostCard key={p._id} post={p} me={me} onLike={like} onComment={comment}/>):<div className="panel empty">No posts yet. Create the first SHIVASHA post.</div>}</section>}
+      {active==="home" && <section className="content"><div className="feed-head"><div><h2>Your Feed</h2><p>Latest posts from the SHIVASHA community.</p></div><button className="primary" onClick={()=>setActive("create")}>+ Create</button></div>{loading?<div className="empty">Loading feed...</div>:posts.length?posts.map(p=><PostCard key={p._id} post={p} me={me} onLike={like} onComment={comment} onDelete={deletePost}/>):<div className="panel empty">No posts yet. Create the first SHIVASHA post.</div>}</section>}
       {active==="create" && <CreatePost onCreate={createPost}/>}
       {active==="discover" && <Discover users={visibleUsers} me={me} onFollow={follow}/>}
       {active==="profile" && <Profile me={me} posts={posts.filter(p=>p.author?._id===me?._id: p.author===me?._id)} auth={auth} onSaved={u=>{setMe(u);setAuth({...auth,user:u});localStorage.setItem("shivasha_auth",JSON.stringify({...auth,user:u}));}}/>}
@@ -140,11 +145,11 @@ function SocialApp({ auth, setAuth, onLogout }) {
   </div>;
 }
 
-function PostCard({post,me,onLike,onComment}) {
+function PostCard({post,me,onLike,onComment,onDelete}) {
   const [text,setText]=useState("");
   const liked=post.likes?.some(id => (id._id||id).toString()===(me?.id||me?._id)?.toString());
   return <article className="post-card">
-    <div className="post-author"><Avatar user={post.author}/><div><b>{post.author?.name}</b><small>{new Date(post.createdAt).toLocaleString()}</small></div></div>
+    <div className="post-author"><Avatar user={post.author}/><div><b>{post.author?.name}</b><small>{new Date(post.createdAt).toLocaleString()}</small></div>{(post.author?._id||post.author)===(me?.id||me?._id)&&<button className="delete-post" onClick={()=>onDelete(post._id)}>Delete</button>}</div>
     {post.text && <p className="post-text">{post.text}</p>}
     {post.imageUrl && <img className="post-image" src={post.imageUrl} alt="Post" />}
     <div className="post-actions"><button className={liked?"liked":""} onClick={()=>onLike(post._id)}>♥ {post.likes?.length||0}</button><span>💬 {post.comments?.length||0}</span></div>
