@@ -43,11 +43,16 @@ router.get("/:id", requireAuth, async (req, res) => {
   if (!user) return res.status(404).json({ message: "User not found" });
   const posts = await Post.find({ author: user._id }).populate("author", "name avatarUrl").sort({ createdAt: -1 }).limit(50);
   const me = await User.findById(req.user.id).select("following");
-  res.json({
-    user,
-    posts,
-    isFollowing: me.following.some(id => id.toString() === user._id.toString())
-  });
+  res.json({ user, posts, isFollowing: me.following.some(id => id.toString() === user._id.toString()) });
+});
+
+router.get("/:id/connections", requireAuth, async (req, res) => {
+  const type = req.query.type === "following" ? "following" : "followers";
+  const user = await User.findById(req.params.id).select(type);
+  if (!user) return res.status(404).json({ message: "User not found" });
+  const ids = user[type] || [];
+  const users = await User.find({ _id: { $in: ids } }).select("name bio avatarUrl followers following").limit(100);
+  res.json({ type, users });
 });
 
 router.post("/:id/follow", requireAuth, async (req, res) => {
