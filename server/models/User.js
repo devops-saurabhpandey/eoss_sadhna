@@ -8,6 +8,7 @@ const userSchema = new mongoose.Schema({
   avatarUrl: { type: String, default: "", trim: true },
   followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  savedPosts: [{ type: mongoose.Schema.Types.ObjectId, ref: "Post" }],
   role: { type: String, enum: ["admin", "manager", "employee"], default: "employee" }
 }, { timestamps: true });
 
