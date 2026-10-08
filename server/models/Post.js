@@ -9,6 +9,7 @@ const postSchema = new mongoose.Schema({
   author: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   text: { type: String, default: "", trim: true, maxlength: 2000 },
   imageUrl: { type: String, default: "", trim: true },
+  images: [{ type: String, trim: true }],
   hashtags: [{ type: String, trim: true, lowercase: true, maxlength: 50 }],
   likes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   comments: [commentSchema]
