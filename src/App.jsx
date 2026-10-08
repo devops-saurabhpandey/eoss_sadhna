@@ -29,7 +29,7 @@ function SocialApp({auth,setAuth,onLogout}) {
   const updatePost=p=>setPosts(prev=>prev.map(x=>x._id===p._id?p:x));
   const createPost=async(text,images)=>{try{const p=await apiFetch("/api/posts",auth,{method:"POST",body:JSON.stringify({text,images})});setPosts(prev=>[p,...prev]);setActive("home")}catch(e){setMessage(e.message)}};
   const like=async id=>{try{updatePost(await apiFetch("/api/posts/"+id+"/like",auth,{method:"POST"}))}catch(e){setMessage(e.message)}};
-  const comment=async(id,text)=>{try{updatePost(await apiFetch("/api/posts/"+id+"/comments",auth,{method:"POST",body:JSON.stringify({text})})}catch(e){setMessage(e.message)}};
+  const comment=async(id,text)=>{try{updatePost(await apiFetch("/api/posts/"+id+"/comments",auth,{method:"POST",body:JSON.stringify({text})}))}catch(e){setMessage(e.message)}};
   const repost=async id=>{try{const p=await apiFetch("/api/posts/"+id+"/repost",auth,{method:"POST",body:JSON.stringify({})});setPosts(prev=>[p,...prev]);setMessage("Post reposted")}catch(e){setMessage(e.message)}};
   const reply=async(postId,commentId,text)=>{try{updatePost(await apiFetch("/api/posts/"+postId+"/comments/"+commentId+"/replies",auth,{method:"POST",body:JSON.stringify({text})}))}catch(e){setMessage(e.message)}};
   const openPost=async id=>{try{const p=await apiFetch("/api/posts/"+id,auth);setViewPost(p);setActive("post-detail")}catch(e){setMessage(e.message)}};
@@ -65,9 +65,9 @@ function SocialApp({auth,setAuth,onLogout}) {
     </main>
   </div>;
 }
-function Messenger({conversations,activeConversation,messages,me,onOpen,onSend}) {
+function Messenger({conversations,activeConversation,messages,me,onOpen,onSend,socket,typingUser,onlineUsers}) {
   const onlineUsers=[]; const typingUser=false; const handleTyping=e=>setText(e.target.value);
-  const [text,setText]=useState(""),[typing,setTyping]=useState(false);
+  const [text,setText]=useState("");\n  const typingTimer=useRef(null);\n  const handleTyping=e=>{setText(e.target.value);if(socket&&activeConversation){socket.emit("typing:start",{conversationId:activeConversation._id});clearTimeout(typingTimer.current);typingTimer.current=setTimeout(()=>socket.emit("typing:stop",{conversationId:activeConversation._id}),900)}};
   const other=activeConversation?.participants?.find(u=>u._id!==me?._id);
   return <section className="content messenger"><div className="messenger-layout"><div className="conversation-list"><div className="panel-head"><h3>Messages</h3></div>{conversations.length?conversations.map(c=>{const u=c.participants?.find(x=>x._id!==me?._id);return <button className={activeConversation?._id===c._id?"conversation active":"conversation"} key={c._id} onClick={()=>onOpen(c)}><Avatar user={u}/><span><b>{u?.name||"SHIVASHA member"} {c.unreadCount>0&&<em className="message-unread">{c.unreadCount}</em>}</b><small>{c.lastMessage?.text||"Start a conversation"}</small></span></button>}):<div className="empty">No conversations yet.</div>}</div><div className="chat-panel">{activeConversation?<><div className="chat-head"><Avatar user={other}/><div><b>{other?.name}</b><small>{onlineUsers.includes(other?._id)?"● Online":"Offline"}{typingUser?" • Typing…":""}</small></div></div><div className="chat-messages">{messages.map(m=><div key={m._id} className={m.sender?._id===me?._id?"message mine":"message"}><span>{m.text}</span><small>{new Date(m.createdAt).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</small></div>)}</div><form className="chat-form" onSubmit={e=>{e.preventDefault();if(text.trim()){onSend(text);setText("")}}}><input value={text} onChange={handleTyping} placeholder="Write a message..."/><button className="primary">Send</button></form></>:<div className="empty">Select a conversation to start messaging.</div>}</div></div></section>}
 
