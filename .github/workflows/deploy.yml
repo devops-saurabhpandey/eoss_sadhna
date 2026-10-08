@@ -1,4 +1,4 @@
-name: Deploy EOSS Sadhna
+name: Deploy SHIVASHA
 
 on:
   push:
@@ -34,7 +34,6 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./dist
-
   deploy:
     needs: build
     runs-on: ubuntu-latest
