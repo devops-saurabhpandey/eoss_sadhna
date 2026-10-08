@@ -29,6 +29,9 @@ function Login({ onLogin }) {
   const [mode, setMode] = useState("login");
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [message, setMessage] = useState("");
+  const [notifications, setNotifications] = useState([]);
+  const [unread, setUnread] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const submit = async e => {
@@ -81,12 +84,15 @@ function SocialApp({ auth, setAuth, onLogout }) {
   const load = async () => {
     setLoading(true); setMessage("");
     try {
-      const [postData, meData, users] = await Promise.all([
+      const [postData, meData, users, notificationResponse] = await Promise.all([
         apiFetch("/api/posts", auth),
         apiFetch("/api/users/me", auth),
-        apiFetch("/api/users/discover", auth)
+        apiFetch("/api/users/discover", auth),
+        apiFetch("/api/notifications", auth)
       ]);
       setPosts(postData); setMe(meData.user); setDiscover(users);
+      setNotifications(notificationResponse.notifications);
+      setUnread(notificationResponse.unread);
       const nextAuth = {...auth, user: meData.user};
       setAuth(nextAuth); localStorage.setItem("shivasha_auth", JSON.stringify(nextAuth));
     } catch (e) { setMessage(e.message); } finally { setLoading(false); }
@@ -134,14 +140,25 @@ function SocialApp({ auth, setAuth, onLogout }) {
     <main className="main">
       <header className="topbar">
         <div><span className="eyebrow">SHIVASHA</span><h1>{active==="home"?"Home":active==="discover"?"Discover":active==="create"?"Create Post":"My Profile"}</h1></div>
-        <div className="top-actions"><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search people..." /><Avatar user={me}/></div>
+        <div className="top-actions"><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search people..." /><button className="notification-button" onClick={async()=>{setShowNotifications(v=>!v);if(unread){await apiFetch("/api/notifications/read",auth,{method:"POST"});setUnread(0);}}}>🔔{unread>0&&<span className="notification-badge">{unread>99?"99+":unread}</span>}</button><Avatar user={me}/></div>
       </header>
       {message && <div className="api-error">{message}</div>}
+      {showNotifications && <Notifications items={notifications}/>} 
       {active==="home" && <section className="content"><div className="feed-head"><div><h2>Your Feed</h2><p>Latest posts from the SHIVASHA community.</p></div><button className="primary" onClick={()=>setActive("create")}>+ Create</button></div>{loading?<div className="empty">Loading feed...</div>:posts.length?posts.map(p=><PostCard key={p._id} post={p} me={me} onLike={like} onComment={comment} onDelete={deletePost}/>):<div className="panel empty">No posts yet. Create the first SHIVASHA post.</div>}</section>}
       {active==="create" && <CreatePost onCreate={createPost}/>}
       {active==="discover" && <Discover users={visibleUsers} me={me} onFollow={follow}/>}
       {active==="profile" && <Profile me={me} posts={posts.filter(p=>p.author?._id===me?._id: p.author===me?._id)} auth={auth} onSaved={u=>{setMe(u);setAuth({...auth,user:u});localStorage.setItem("shivasha_auth",JSON.stringify({...auth,user:u}));}}/>}
     </main>
+  </div>;
+}
+
+function Notifications({items}) {
+  return <div className="notifications-panel">
+    <div className="panel-head"><h3>Notifications</h3></div>
+    {items.length ? items.map(n => <div className="notification-item" key={n._id}>
+      <Avatar user={n.actor}/>
+      <div><b>{n.actor?.name || "Someone"}</b> {n.type==="like"?"liked your post":n.type==="comment"?"commented on your post":"started following you"}<small>{new Date(n.createdAt).toLocaleString()}</small></div>
+    </div>) : <div className="empty">No notifications yet.</div>}
   </div>;
 }
 
