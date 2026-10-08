@@ -1,5 +1,6 @@
 import { Router } from "express";
 import User from "../models/User.js";
+import Notification from "../models/Notification.js";
 import { requireAuth } from "../middleware/auth.js";
 
 const router = Router();
@@ -38,9 +39,11 @@ router.post("/:id/follow", requireAuth, async (req, res) => {
   if (following) {
     me.following = me.following.filter(id => id.toString() !== target._id.toString());
     target.followers = target.followers.filter(id => id.toString() !== me._id.toString());
+    await Notification.deleteOne({ recipient: target._id, actor: me._id, type: "follow" });
   } else {
     me.following.push(target._id);
     target.followers.push(me._id);
+    await Notification.create({ recipient: target._id, actor: me._id, type: "follow" });
   }
   await Promise.all([me.save(), target.save()]);
   res.json({ following: !following, followers: target.followers.length, followingCount: me.following.length });
