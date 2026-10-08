@@ -73,4 +73,24 @@ router.post("/:id/follow", requireAuth, async (req, res) => {
   res.json({ following: !following });
 });
 
+router.post("/:id/block", requireAuth, async (req, res) => {
+  if (req.params.id === req.user.id) return res.status(400).json({ message: "You cannot block yourself" });
+  const [me, target] = await Promise.all([User.findById(req.user.id), User.findById(req.params.id)]);
+  if (!me || !target) return res.status(404).json({ message: "User not found" });
+  const exists = me.blockedUsers.some(id => id.toString() === target._id.toString());
+  if (exists) me.blockedUsers = me.blockedUsers.filter(id => id.toString() !== target._id.toString());
+  else me.blockedUsers.push(target._id);
+  await me.save();
+  res.json({ blocked: !exists });
+});
+
+router.post("/:id/report", requireAuth, async (req, res) => {
+  if (req.params.id === req.user.id) return res.status(400).json({ message: "You cannot report yourself" });
+  const target = await User.findById(req.params.id).select("_id");
+  if (!target) return res.status(404).json({ message: "User not found" });
+  const reason = String(req.body?.reason || "other").trim().slice(0, 100);
+  console.warn("[SHIVASHA REPORT]", { reporter: req.user.id, target: target._id.toString(), reason });
+  res.status(201).json({ reported: true });
+});
+
 export default router;
