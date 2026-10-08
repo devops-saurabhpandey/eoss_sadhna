@@ -8,7 +8,7 @@ import { requireAuth } from "../middleware/auth.js";
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024, files: 6 } });
 const extractHashtags = text => [...new Set((text.match(/#[a-zA-Z0-9_]+/g) || []).map(tag => tag.slice(1).toLowerCase()))].slice(0, 20);
-const populatePost = query => query.populate("author", "name email bio avatarUrl").populate("comments.user", "name avatarUrl");
+const populatePost = query => query.populate("author", "name email bio avatarUrl").populate("comments.user", "name avatarUrl").populate("comments.replies.user", "name avatarUrl").populate("repostOf");
 
 async function uploadImage(file) {
   if (!["image/jpeg","image/png","image/webp","image/gif"].includes(file.mimetype)) throw new Error("Only JPG, PNG, WEBP or GIF images are allowed");
@@ -16,10 +16,7 @@ async function uploadImage(file) {
     const { v2: cloudinary } = await import("cloudinary");
     cloudinary.config({ cloud_name: process.env.CLOUDINARY_CLOUD_NAME, api_key: process.env.CLOUDINARY_API_KEY, api_secret: process.env.CLOUDINARY_API_SECRET });
     return new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        { folder: "shivasha/posts", resource_type: "image", transformation: [{ width: 1600, height: 1600, crop: "limit", quality: "auto", fetch_format: "auto" }] },
-        (error, result) => error ? reject(error) : resolve(result.secure_url)
-      );
+      const stream = cloudinary.uploader.upload_stream({ folder: "shivasha/posts", resource_type: "image", transformation: [{ width: 1600, height: 1600, crop: "limit", quality: "auto", fetch_format: "auto" }] }, (error, result) => error ? reject(error) : resolve(result.secure_url));
       stream.end(file.buffer);
     });
   }
@@ -29,6 +26,12 @@ async function uploadImage(file) {
 router.get("/", requireAuth, async (req, res) => {
   const filter = req.query.hashtag ? { hashtags: String(req.query.hashtag).toLowerCase().replace(/^#/, "") } : {};
   res.json(await populatePost(Post.find(filter).sort({ createdAt: -1 }).limit(50)));
+});
+
+router.get("/:id", requireAuth, async (req, res) => {
+  const post = await populatePost(Post.findById(req.params.id));
+  if (!post) return res.status(404).json({ message: "Post not found" });
+  res.json(post);
 });
 
 router.get("/saved", requireAuth, async (req, res) => {
@@ -41,9 +44,7 @@ router.post("/upload", requireAuth, upload.array("images", 6), async (req, res) 
     if (!req.files?.length) return res.status(400).json({ message: "At least one image is required" });
     const imageUrls = await Promise.all(req.files.map(uploadImage));
     res.status(201).json({ imageUrls, storage: imageUrls[0].startsWith("data:") ? "database-fallback" : "cloudinary" });
-  } catch (error) {
-    res.status(400).json({ message: error.message || "Image upload failed" });
-  }
+  } catch (error) { res.status(400).json({ message: error.message || "Image upload failed" }); }
 });
 
 router.post("/", requireAuth, async (req, res) => {
@@ -66,18 +67,16 @@ router.post("/:id/save", requireAuth, async (req, res) => {
   res.json({ saved: !saved });
 });
 
-router.post("/:id/like", requireAuth, async (req, res) => {
-  const post = await Post.findById(req.params.id);
-  if (!post) return res.status(404).json({ message: "Post not found" });
-  const userId = req.user.id;
-  const liked = post.likes.some(id => id.toString() === userId);
-  if (liked) post.likes = post.likes.filter(id => id.toString() !== userId);
-  else {
-    post.likes.push(userId);
-    if (post.author.toString() !== userId) await Notification.create({ recipient: post.author, actor: userId, type: "like", post: post._id });
-  }
-  await post.save();
-  res.json(await populatePost(Post.findById(post._id)));
+router.post("/:id/repost", requireAuth, async (req, res) => {
+  const original = await Post.findById(req.params.id);
+  if (!original) return res.status(404).json({ message: "Post not found" });
+  const existing = await Post.findOne({ author: req.user.id, repostOf: original._id });
+  if (existing) return res.status(409).json({ message: "You already reposted this post" });
+  const repost = await Post.create({ author: req.user.id, repostOf: original._id, text: String(req.body.text || "").trim(), hashtags: extractHashtags(String(req.body.text || "")) });
+  if (original.author.toString() !== req.user.id) await Notification.create({ recipient: original.author, actor: req.user.id, type: "comment", post: original._id });
+  original.reposts.push(req.user.id);
+  await original.save();
+  res.status(201).json(await populatePost(Post.findById(repost._id)));
 });
 
 router.post("/:id/comments", requireAuth, async (req, res) => {
@@ -88,6 +87,30 @@ router.post("/:id/comments", requireAuth, async (req, res) => {
   post.comments.push({ user: req.user.id, text });
   await post.save();
   if (post.author.toString() !== req.user.id) await Notification.create({ recipient: post.author, actor: req.user.id, type: "comment", post: post._id });
+  res.json(await populatePost(Post.findById(post._id)));
+});
+
+router.post("/:postId/comments/:commentId/replies", requireAuth, async (req, res) => {
+  const text = String(req.body.text || "").trim();
+  if (!text) return res.status(400).json({ message: "Reply is required" });
+  const post = await Post.findById(req.params.postId);
+  if (!post) return res.status(404).json({ message: "Post not found" });
+  const comment = post.comments.id(req.params.commentId);
+  if (!comment) return res.status(404).json({ message: "Comment not found" });
+  comment.replies.push({ user: req.user.id, text });
+  await post.save();
+  if (comment.user.toString() !== req.user.id) await Notification.create({ recipient: comment.user, actor: req.user.id, type: "comment", post: post._id });
+  res.json(await populatePost(Post.findById(post._id)));
+});
+
+router.post("/:id/like", requireAuth, async (req, res) => {
+  const post = await Post.findById(req.params.id);
+  if (!post) return res.status(404).json({ message: "Post not found" });
+  const userId = req.user.id;
+  const liked = post.likes.some(id => id.toString() === userId);
+  if (liked) post.likes = post.likes.filter(id => id.toString() !== userId);
+  else { post.likes.push(userId); if (post.author.toString() !== userId) await Notification.create({ recipient: post.author, actor: userId, type: "like", post: post._id }); }
+  await post.save();
   res.json(await populatePost(Post.findById(post._id)));
 });
 
