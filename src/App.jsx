@@ -1,191 +1,57 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
-
 function apiFetch(path, auth, options = {}) {
-  return fetch(API_BASE + path, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(auth?.token ? { Authorization: "Bearer " + auth.token } : {}),
-      ...(options.headers || {})
-    }
-  }).then(async response => {
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.message || "API request failed");
-    return data;
-  });
+  return fetch(API_BASE + path, {...options, headers: {"Content-Type":"application/json", ...(auth?.token ? {Authorization:"Bearer "+auth.token}:{}), ...(options.headers||{})}})
+    .then(async r => { const d=await r.json().catch(()=>({})); if(!r.ok) throw new Error(d.message||"API request failed"); return d; });
 }
-
 export default function App() {
-  const [auth, setAuth] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("shivasha_auth")) || null; } catch { return null; }
-  });
-  if (!auth) return <Login onLogin={setAuth} />;
-  return <SocialApp auth={auth} setAuth={setAuth} onLogout={() => { localStorage.removeItem("shivasha_auth"); setAuth(null); }} />;
+  const [auth,setAuth]=useState(()=>{try{return JSON.parse(localStorage.getItem("shivasha_auth"))||null}catch{return null}});
+  if(!auth) return <Login onLogin={setAuth}/>;
+  return <SocialApp auth={auth} setAuth={setAuth} onLogout={()=>{localStorage.removeItem("shivasha_auth");setAuth(null)}}/>;
 }
-
-function Login({ onLogin }) {
-  const [mode, setMode] = useState("login");
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
-  const [message, setMessage] = useState("");
-  const [notifications, setNotifications] = useState([]);
-  const [unread, setUnread] = useState(0);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [loading, setLoading] = useState(false);
-
-  const submit = async e => {
-    e.preventDefault(); setMessage(""); setLoading(true);
-    try {
-      const data = await apiFetch("/api/auth/" + mode, null, { method: "POST", body: JSON.stringify(form) });
-      if (mode === "register") {
-        setMode("login"); setMessage("Account created. Now login.");
-      } else {
-        localStorage.setItem("shivasha_auth", JSON.stringify(data)); onLogin(data);
-      }
-    } catch (error) { setMessage(error.message); } finally { setLoading(false); }
-  };
-
-  return <div className="login-page">
-    <div className="login-card">
-      <div className="shivasha-logo">S</div>
-      <div className="login-brand"><b>SHIVASHA</b><small>Social • Connect • Share</small></div>
-      <p className="eyebrow">SOCIAL COMMUNITY PLATFORM</p>
-      <h1>{mode === "login" ? "Welcome to SHIVASHA" : "Join SHIVASHA"}</h1>
-      <p className="muted">{mode === "login" ? "Connect with people and share what matters." : "Create your profile and start connecting."}</p>
-      <form onSubmit={submit}>
-        {mode === "register" && <label>Name<input required value={form.name} onChange={e => setForm({...form,name:e.target.value})} placeholder="Your name" /></label>}
-        <label>Email<input required type="email" value={form.email} onChange={e => setForm({...form,email:e.target.value})} placeholder="name@example.com" /></label>
-        <label>Password<input required minLength="6" type="password" value={form.password} onChange={e => setForm({...form,password:e.target.value})} placeholder="Minimum 6 characters" /></label>
-        <button className="primary login-button" disabled={loading}>{loading ? "Please wait..." : mode === "login" ? "Login" : "Create account"}</button>
-      </form>
-      {message && <div className="login-message">{message}</div>}
-      <button className="switch-auth" onClick={() => { setMode(mode === "login" ? "register" : "login"); setMessage(""); }}>
-        {mode === "login" ? "Create a new account" : "Already have an account? Login"}
-      </button>
-    </div>
-  </div>;
+function Login({onLogin}) {
+  const [mode,setMode]=useState("login"),[form,setForm]=useState({name:"",email:"",password:""}),[message,setMessage]=useState(""),[loading,setLoading]=useState(false);
+  const submit=async e=>{e.preventDefault();setMessage("");setLoading(true);try{const d=await apiFetch("/api/auth/"+mode,null,{method:"POST",body:JSON.stringify(form)});if(mode==="register"){setMode("login");setMessage("Account created. Now login.")}else{localStorage.setItem("shivasha_auth",JSON.stringify(d));onLogin(d)}}catch(e){setMessage(e.message)}finally{setLoading(false)}};
+  return <div className="login-page"><div className="login-card"><div className="shivasha-logo">S</div><div className="login-brand"><b>SHIVASHA</b><small>Social • Connect • Share</small></div><p className="eyebrow">SOCIAL COMMUNITY PLATFORM</p><h1>{mode==="login"?"Welcome to SHIVASHA":"Join SHIVASHA"}</h1><p className="muted">{mode==="login"?"Connect with people and share what matters.":"Create your profile and start connecting."}</p><form onSubmit={submit}>{mode==="register"&&<label>Name<input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Your name"/></label>}<label>Email<input required type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="name@example.com"/></label><label>Password<input required minLength="6" type="password" value={form.password} onChange={e=>setForm({...form,password:e.target.value})} placeholder="Minimum 6 characters"/></label><button className="primary login-button" disabled={loading}>{loading?"Please wait...":mode==="login"?"Login":"Create account"}</button></form>{message&&<div className="login-message">{message}</div>}<button className="switch-auth" onClick={()=>{setMode(mode==="login"?"register":"login");setMessage("")}}>{mode==="login"?"Create a new account":"Already have an account? Login"}</button></div></div>;
 }
-
-function Avatar({ user, large = false }) {
-  const letter = (user?.name || "S").trim().charAt(0).toUpperCase();
-  return user?.avatarUrl ? <img className={large ? "avatar large" : "avatar"} src={user.avatarUrl} alt="" /> : <div className={large ? "avatar large" : "avatar"}>{letter}</div>;
-}
-
-function SocialApp({ auth, setAuth, onLogout }) {
-  const [active, setActive] = useState("home");
-  const [posts, setPosts] = useState([]);
-  const [me, setMe] = useState(auth.user);
-  const [discover, setDiscover] = useState([]);
-  const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
-
-  const load = async () => {
-    setLoading(true); setMessage("");
-    try {
-      const [postData, meData, users, notificationResponse] = await Promise.all([
-        apiFetch("/api/posts", auth),
-        apiFetch("/api/users/me", auth),
-        apiFetch("/api/users/discover", auth),
-        apiFetch("/api/notifications", auth)
-      ]);
-      setPosts(postData); setMe(meData.user); setDiscover(users);
-      setNotifications(notificationResponse.notifications);
-      setUnread(notificationResponse.unread);
-      const nextAuth = {...auth, user: meData.user};
-      setAuth(nextAuth); localStorage.setItem("shivasha_auth", JSON.stringify(nextAuth));
-    } catch (e) { setMessage(e.message); } finally { setLoading(false); }
-  };
-  useEffect(() => { load(); }, []);
-
-  const visibleUsers = useMemo(() => discover.filter(u => (u.name + " " + (u.bio || "")).toLowerCase().includes(query.toLowerCase())), [discover, query]);
-
-  const updatePost = post => setPosts(prev => prev.map(p => p._id === post._id ? post : p));
-
-  const createPost = async (text, imageUrl) => {
-    try {
-      const post = await apiFetch("/api/posts", auth, { method: "POST", body: JSON.stringify({text, imageUrl}) });
-      setPosts(prev => [post, ...prev]); setActive("home");
-    } catch (e) { setMessage(e.message); }
-  };
-
-  const like = async id => { try { updatePost(await apiFetch("/api/posts/" + id + "/like", auth, {method:"POST"})); } catch(e){setMessage(e.message);} };
-  const comment = async (id, text) => { try { updatePost(await apiFetch("/api/posts/" + id + "/comments", auth, {method:"POST",body:JSON.stringify({text})})); } catch(e){setMessage(e.message);} };
-  const deletePost = async id => {
-    if (!window.confirm("Delete this post?")) return;
-    try { await apiFetch("/api/posts/" + id, auth, {method:"DELETE"}); setPosts(prev => prev.filter(p => p._id !== id)); }
-    catch(e) { setMessage(e.message); }
-  };
-  const follow = async id => {
-    try {
-      await apiFetch("/api/users/" + id + "/follow", auth, {method:"POST"});
-      const users = await apiFetch("/api/users/discover", auth); setDiscover(users);
-      const mine = await apiFetch("/api/users/me", auth); setMe(mine.user);
-    } catch(e){setMessage(e.message);}
-  };
-
+function Avatar({user,large=false}){const letter=(user?.name||"S").trim().charAt(0).toUpperCase();return user?.avatarUrl?<img className={large?"avatar large":"avatar"} src={user.avatarUrl} alt=""/>:<div className={large?"avatar large":"avatar"}>{letter}</div>}
+function SocialApp({auth,setAuth,onLogout}) {
+  const [active,setActive]=useState("home"),[posts,setPosts]=useState([]),[me,setMe]=useState(auth.user),[discover,setDiscover]=useState([]),[query,setQuery]=useState(""),[hashtag,setHashtag]=useState(""),[savedPosts,setSavedPosts]=useState([]),[loading,setLoading]=useState(true),[message,setMessage]=useState(""),[notifications,setNotifications]=useState([]),[unread,setUnread]=useState(0),[showNotifications,setShowNotifications]=useState(false);
+  const load=async()=>{setLoading(true);setMessage("");try{const [postData,meData,users,notificationResponse]=await Promise.all([apiFetch("/api/posts",auth),apiFetch("/api/users/me",auth),apiFetch("/api/users/discover",auth),apiFetch("/api/notifications",auth)]);setPosts(postData);setMe(meData.user);setDiscover(users);setNotifications(notificationResponse.notifications);setUnread(notificationResponse.unread);const next={...auth,user:meData.user};setAuth(next);localStorage.setItem("shivasha_auth",JSON.stringify(next))}catch(e){setMessage(e.message)}finally{setLoading(false)}};
+  useEffect(()=>{load()},[]);
+  const visibleUsers=useMemo(()=>discover.filter(u=>(u.name+" "+(u.bio||"")).toLowerCase().includes(query.toLowerCase())),[discover,query]);
+  const updatePost=p=>setPosts(prev=>prev.map(x=>x._id===p._id?p:x));
+  const createPost=async(text,imageUrl)=>{try{const p=await apiFetch("/api/posts",auth,{method:"POST",body:JSON.stringify({text,imageUrl})});setPosts(prev=>[p,...prev]);setActive("home")}catch(e){setMessage(e.message)}};
+  const like=async id=>{try{updatePost(await apiFetch("/api/posts/"+id+"/like",auth,{method:"POST"}))}catch(e){setMessage(e.message)}};
+  const comment=async(id,text)=>{try{updatePost(await apiFetch("/api/posts/"+id+"/comments",auth,{method:"POST",body:JSON.stringify({text})}))}catch(e){setMessage(e.message)}};
+  const savePost=async id=>{try{const r=await apiFetch("/api/posts/"+id+"/save",auth,{method:"POST"});setMessage(r.saved?"Post saved":"Post removed from saved");if(active==="saved")setSavedPosts(await apiFetch("/api/posts/saved",auth))}catch(e){setMessage(e.message)}};
+  const openSaved=async()=>{try{setSavedPosts(await apiFetch("/api/posts/saved",auth));setActive("saved")}catch(e){setMessage(e.message)}};
+  const openHashtag=async tag=>{try{setHashtag(tag);setPosts(await apiFetch("/api/posts?hashtag="+encodeURIComponent(tag),auth));setActive("hashtag")}catch(e){setMessage(e.message)}};
+  const deletePost=async id=>{if(!window.confirm("Delete this post?"))return;try{await apiFetch("/api/posts/"+id,auth,{method:"DELETE"});setPosts(prev=>prev.filter(p=>p._id!==id));setSavedPosts(prev=>prev.filter(p=>p._id!==id))}catch(e){setMessage(e.message)}};
+  const follow=async id=>{try{await apiFetch("/api/users/"+id+"/follow",auth,{method:"POST"});setDiscover(await apiFetch("/api/users/discover",auth));setMe((await apiFetch("/api/users/me",auth)).user)}catch(e){setMessage(e.message)}};
+  const markNotifications=async()=>{setShowNotifications(v=>!v);if(unread){try{await apiFetch("/api/notifications/read",auth,{method:"POST"});setUnread(0)}catch(e){setMessage(e.message)}}};
   return <div className="social-shell">
     <header className="mobile-header"><b>SHIVASHA</b><button onClick={onLogout}>Logout</button></header>
-    <aside className="sidebar">
-      <div className="brand"><div className="brand-mark">S</div><div><b>SHIVASHA</b><small>Social • Connect • Share</small></div></div>
-      <nav>
-        {[["home","⌂","Home"],["discover","◎","Discover"],["create","＋","Create Post"],["profile","◉","Profile"]].map(([key,icon,label]) =>
-          <button key={key} className={active===key?"nav-item active":"nav-item"} onClick={()=>setActive(key)}><span>{icon}</span>{label}</button>
-        )}
-      </nav>
-      <div className="sidebar-user"><Avatar user={me}/><div><b>{me?.name}</b><small>@{(me?.email || "").split("@")[0]}</small></div></div>
-      <button className="logout" onClick={onLogout}>Logout</button>
-    </aside>
-    <main className="main">
-      <header className="topbar">
-        <div><span className="eyebrow">SHIVASHA</span><h1>{active==="home"?"Home":active==="discover"?"Discover":active==="create"?"Create Post":"My Profile"}</h1></div>
-        <div className="top-actions"><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search people..." /><button className="notification-button" onClick={async()=>{setShowNotifications(v=>!v);if(unread){await apiFetch("/api/notifications/read",auth,{method:"POST"});setUnread(0);}}}>🔔{unread>0&&<span className="notification-badge">{unread>99?"99+":unread}</span>}</button><Avatar user={me}/></div>
-      </header>
-      {message && <div className="api-error">{message}</div>}
-      {showNotifications && <Notifications items={notifications}/>} 
-      {active==="home" && <section className="content"><div className="feed-head"><div><h2>Your Feed</h2><p>Latest posts from the SHIVASHA community.</p></div><button className="primary" onClick={()=>setActive("create")}>+ Create</button></div>{loading?<div className="empty">Loading feed...</div>:posts.length?posts.map(p=><PostCard key={p._id} post={p} me={me} onLike={like} onComment={comment} onDelete={deletePost}/>):<div className="panel empty">No posts yet. Create the first SHIVASHA post.</div>}</section>}
-      {active==="create" && <CreatePost onCreate={createPost}/>}
-      {active==="discover" && <Discover users={visibleUsers} me={me} onFollow={follow}/>}
-      {active==="profile" && <Profile me={me} posts={posts.filter(p=>p.author?._id===me?._id: p.author===me?._id)} auth={auth} onSaved={u=>{setMe(u);setAuth({...auth,user:u});localStorage.setItem("shivasha_auth",JSON.stringify({...auth,user:u}));}}/>}
+    <aside className="sidebar"><div className="brand"><div className="brand-mark">S</div><div><b>SHIVASHA</b><small>Social • Connect • Share</small></div></div><nav>{[["home","⌂","Home"],["discover","◎","Discover"],["create","＋","Create Post"],["saved","🔖","Saved Posts"],["profile","◉","Profile"]].map(([key,icon,label])=><button key={key} className={active===key?"nav-item active":"nav-item"} onClick={()=>key==="saved"?openSaved():setActive(key)}><span>{icon}</span>{label}</button>)}</nav><div className="sidebar-user"><Avatar user={me}/><div><b>{me?.name}</b><small>@{(me?.email||"").split("@")[0]}</small></div></div><button className="logout" onClick={onLogout}>Logout</button></aside>
+    <main className="main"><header className="topbar"><div><span className="eyebrow">SHIVASHA</span><h1>{active==="home"?"Home":active==="discover"?"Discover":active==="create"?"Create Post":active==="saved"?"Saved Posts":active==="hashtag"?"#"+hashtag:"My Profile"}</h1></div><div className="top-actions"><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search people..."/><button className="notification-button" onClick={markNotifications}>🔔{unread>0&&<span className="notification-badge">{unread>99?"99+":unread}</span>}</button><Avatar user={me}/></div></header>
+      {message&&<div className="api-error">{message}</div>}{showNotifications&&<Notifications items={notifications}/>}
+      {active==="home"&&<section className="content"><div className="feed-head"><div><h2>Your Feed</h2><p>Latest posts from the SHIVASHA community.</p></div><button className="primary" onClick={()=>setActive("create")}>+ Create</button></div>{loading?<div className="empty">Loading feed...</div>:posts.length?posts.map(p=><PostCard key={p._id} post={p} me={me} onLike={like} onComment={comment} onDelete={deletePost} onSave={savePost} onHashtag={openHashtag}/>):<div className="panel empty">No posts yet. Create the first SHIVASHA post.</div>}</section>}
+      {active==="create"&&<CreatePost onCreate={createPost}/>}
+      {active==="discover"&&<Discover users={visibleUsers} me={me} onFollow={follow}/>}
+      {active==="saved"&&<section className="content"><div className="feed-head"><div><h2>Saved Posts</h2><p>Your bookmarked SHIVASHA posts.</p></div></div>{savedPosts.length?savedPosts.map(p=><PostCard key={p._id} post={p} me={me} onLike={like} onComment={comment} onDelete={deletePost} onSave={savePost} onHashtag={openHashtag}/>):<div className="panel empty">No saved posts yet.</div>}</section>}
+      {active==="hashtag"&&<section className="content"><div className="feed-head"><div><h2>#{hashtag}</h2><p>Posts using this hashtag.</p></div><button className="secondary" onClick={()=>setActive("home")}>Back to Home</button></div>{posts.length?posts.map(p=><PostCard key={p._id} post={p} me={me} onLike={like} onComment={comment} onDelete={deletePost} onSave={savePost} onHashtag={openHashtag}/>):<div className="panel empty">No posts found for this hashtag.</div>}</section>}
+      {active==="profile"&&<Profile me={me} posts={posts.filter(p=>p.author?._id===me?._id:p.author===me?._id)} auth={auth} onSaved={u=>{setMe(u);setAuth({...auth,user:u});localStorage.setItem("shivasha_auth",JSON.stringify({...auth,user:u}))}}/>}
     </main>
   </div>;
 }
-
-function Notifications({items}) {
-  return <div className="notifications-panel">
-    <div className="panel-head"><h3>Notifications</h3></div>
-    {items.length ? items.map(n => <div className="notification-item" key={n._id}>
-      <Avatar user={n.actor}/>
-      <div><b>{n.actor?.name || "Someone"}</b> {n.type==="like"?"liked your post":n.type==="comment"?"commented on your post":"started following you"}<small>{new Date(n.createdAt).toLocaleString()}</small></div>
-    </div>) : <div className="empty">No notifications yet.</div>}
-  </div>;
-}
-
-function PostCard({post,me,onLike,onComment,onDelete}) {
+function Notifications({items}){return <div className="notifications-panel"><div className="panel-head"><h3>Notifications</h3></div>{items.length?items.map(n=><div className="notification-item" key={n._id}><Avatar user={n.actor}/><div><b>{n.actor?.name||"Someone"}</b> {n.type==="like"?"liked your post":n.type==="comment"?"commented on your post":"started following you"}<small>{new Date(n.createdAt).toLocaleString()}</small></div></div>):<div className="empty">No notifications yet.</div>}</div>}
+function PostCard({post,me,onLike,onComment,onDelete,onSave,onHashtag}) {
   const [text,setText]=useState("");
-  const liked=post.likes?.some(id => (id._id||id).toString()===(me?.id||me?._id)?.toString());
-  return <article className="post-card">
-    <div className="post-author"><Avatar user={post.author}/><div><b>{post.author?.name}</b><small>{new Date(post.createdAt).toLocaleString()}</small></div>{(post.author?._id||post.author)===(me?.id||me?._id)&&<button className="delete-post" onClick={()=>onDelete(post._id)}>Delete</button>}</div>
-    {post.text && <p className="post-text">{post.text}</p>}
-    {post.imageUrl && <img className="post-image" src={post.imageUrl} alt="Post" />}
-    <div className="post-actions"><button className={liked?"liked":""} onClick={()=>onLike(post._id)}>♥ {post.likes?.length||0}</button><span>💬 {post.comments?.length||0}</span></div>
-    <div className="comments">{post.comments?.slice(-3).map(c=><div className="comment" key={c._id}><b>{c.user?.name}</b> {c.text}</div>)}</div>
-    <form className="comment-form" onSubmit={e=>{e.preventDefault();if(text.trim()){onComment(post._id,text.trim());setText("");}}}><input value={text} onChange={e=>setText(e.target.value)} placeholder="Write a comment..." /><button>Post</button></form>
-  </article>;
+  const liked=post.likes?.some(id=>(id._id||id).toString()===(me?.id||me?._id)?.toString());
+  return <article className="post-card"><div className="post-author"><Avatar user={post.author}/><div><b>{post.author?.name}</b><small>{new Date(post.createdAt).toLocaleString()}</small></div>{(post.author?._id||post.author)===(me?.id||me?._id)&&<button className="delete-post" onClick={()=>onDelete(post._id)}>Delete</button>}</div>{post.text&&<p className="post-text">{renderHashtags(post.text,onHashtag)}</p>}{post.imageUrl&&<img className="post-image" src={post.imageUrl} alt="Post"/>}<div className="post-actions"><button className={liked?"liked":""} onClick={()=>onLike(post._id)}>♥ {post.likes?.length||0}</button><button onClick={()=>onSave(post._id)}>🔖 Save</button><span>💬 {post.comments?.length||0}</span></div><div className="comments">{post.comments?.slice(-3).map(c=><div className="comment" key={c._id}><b>{c.user?.name}</b> {c.text}</div>)}</div><form className="comment-form" onSubmit={e=>{e.preventDefault();if(text.trim()){onComment(post._id,text.trim());setText("")}}}><input value={text} onChange={e=>setText(e.target.value)} placeholder="Write a comment..."/><button>Post</button></form></article>;
 }
-
-function CreatePost({onCreate}) {
-  const [text,setText]=useState(""); const [imageUrl,setImageUrl]=useState("");
-  return <section className="content narrow"><div className="panel"><div className="panel-head"><h2>Create a Post</h2></div><textarea className="post-composer" value={text} onChange={e=>setText(e.target.value)} placeholder="What do you want to share?" maxLength="2000"/><label>Image URL (optional)<input value={imageUrl} onChange={e=>setImageUrl(e.target.value)} placeholder="https://example.com/image.jpg"/></label><button className="primary" disabled={!text.trim()&&!imageUrl.trim()} onClick={()=>onCreate(text.trim(),imageUrl.trim())}>Publish Post</button></div></section>;
-}
-
-function Discover({users,me,onFollow}) {
-  return <section className="content"><div className="feed-head"><div><h2>Discover People</h2><p>Find people and grow your SHIVASHA network.</p></div></div><div className="people-grid">{users.map(u=>{const following=u.followers?.some(id=>(id._id||id).toString()===(me?.id||me?._id)?.toString());return <div className="person-card" key={u._id}><Avatar user={u} large/><h3>{u.name}</h3><p>{u.bio||"SHIVASHA member"}</p><small>{u.followers?.length||0} followers</small><button className={following?"secondary":"primary"} onClick={()=>onFollow(u._id)}>{following?"Following":"Follow"}</button></div>})}</div></section>;
-}
-
-function Profile({me,posts,auth,onSaved}) {
-  const [name,setName]=useState(me?.name||""); const [bio,setBio]=useState(me?.bio||""); const [avatarUrl,setAvatarUrl]=useState(me?.avatarUrl||""); const [saved,setSaved]=useState("");
-  const save=async()=>{try{const r=await apiFetch("/api/users/me",auth,{method:"PATCH",body:JSON.stringify({name,bio,avatarUrl})});onSaved(r.user);setSaved("Profile saved");}catch(e){setSaved(e.message);}};
-  return <section className="content narrow"><div className="profile-hero"><Avatar user={{...me,avatarUrl,name}} large/><div><h2>{name}</h2><p>{bio||"Welcome to SHIVASHA."}</p><div className="profile-stats"><b>{me?.followers?.length||0}<small>Followers</small></b><b>{me?.following?.length||0}<small>Following</small></b><b>{posts.length}<small>Posts</small></b></div></div></div><div className="panel"><h3>Edit Profile</h3><label>Name<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Bio<textarea value={bio} onChange={e=>setBio(e.target.value)} maxLength="280"/></label><label>Avatar URL<input value={avatarUrl} onChange={e=>setAvatarUrl(e.target.value)} placeholder="https://example.com/avatar.jpg"/></label><button className="primary" onClick={save}>Save Profile</button>{saved&&<span className="save-message">{saved}</span>}</div></section>;
-}
+function renderHashtags(text,onHashtag){return text.split(/(#[a-zA-Z0-9_]+)/g).map((part,i)=>part.startsWith("#")?<button type="button" className="hashtag-link" key={i} onClick={()=>onHashtag(part.slice(1))}>{part}</button>:part)}
+function CreatePost({onCreate}){const [text,setText]=useState(""),[imageUrl,setImageUrl]=useState("");return <section className="content narrow"><div className="panel"><div className="panel-head"><h2>Create a Post</h2></div><textarea className="post-composer" value={text} onChange={e=>setText(e.target.value)} placeholder="What do you want to share? Use #hashtags" maxLength="2000"/><label>Image URL (optional)<input value={imageUrl} onChange={e=>setImageUrl(e.target.value)} placeholder="https://example.com/image.jpg"/></label><button className="primary" disabled={!text.trim()&&!imageUrl.trim()} onClick={()=>onCreate(text.trim(),imageUrl.trim())}>Publish Post</button></div></section>}
+function Discover({users,me,onFollow}){return <section className="content"><div className="feed-head"><div><h2>Discover People</h2><p>Find people and grow your SHIVASHA network.</p></div></div><div className="people-grid">{users.map(u=>{const following=u.followers?.some(id=>(id._id||id).toString()===(me?.id||me?._id)?.toString());return <div className="person-card" key={u._id}><Avatar user={u} large/><h3>{u.name}</h3><p>{u.bio||"SHIVASHA member"}</p><small>{u.followers?.length||0} followers</small><button className={following?"secondary":"primary"} onClick={()=>onFollow(u._id)}>{following?"Following":"Follow"}</button></div>})}</div></section>}
+function Profile({me,posts,auth,onSaved}){const [name,setName]=useState(me?.name||""),[bio,setBio]=useState(me?.bio||""),[avatarUrl,setAvatarUrl]=useState(me?.avatarUrl||""),[saved,setSaved]=useState("");const save=async()=>{try{const r=await apiFetch("/api/users/me",auth,{method:"PATCH",body:JSON.stringify({name,bio,avatarUrl})});onSaved(r.user);setSaved("Profile saved")}catch(e){setSaved(e.message)}};return <section className="content narrow"><div className="profile-hero"><Avatar user={{...me,avatarUrl,name}} large/><div><h2>{name}</h2><p>{bio||"Welcome to SHIVASHA."}</p><div className="profile-stats"><b>{me?.followers?.length||0}<small>Followers</small></b><b>{me?.following?.length||0}<small>Following</small></b><b>{posts.length}<small>Posts</small></b></div></div></div><div className="panel"><h3>Edit Profile</h3><label>Name<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Bio<textarea value={bio} onChange={e=>setBio(e.target.value)} maxLength="280"/></label><label>Avatar URL<input value={avatarUrl} onChange={e=>setAvatarUrl(e.target.value)} placeholder="https://example.com/avatar.jpg"/></label><button className="primary" onClick={save}>Save Profile</button>{saved&&<span className="save-message">{saved}</span>}</div></section>}
