@@ -42,8 +42,8 @@ router.get("/:id", requireAuth, async (req, res) => {
   const user = await publicUser(User.findById(req.params.id));
   if (!user) return res.status(404).json({ message: "User not found" });
   const posts = await Post.find({ author: user._id }).populate("author", "name avatarUrl").sort({ createdAt: -1 }).limit(50);
-  const me = await User.findById(req.user.id).select("following");
-  res.json({ user, posts, isFollowing: me.following.some(id => id.toString() === user._id.toString()) });
+  const me = await User.findById(req.user.id).select("following blockedUsers");
+  res.json({ user, posts, isFollowing: me.following.some(id => id.toString() === user._id.toString()), isBlocked: me.blockedUsers.some(id => id.toString() === user._id.toString()) });
 });
 
 router.get("/:id/connections", requireAuth, async (req, res) => {
