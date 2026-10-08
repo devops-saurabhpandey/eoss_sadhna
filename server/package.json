@@ -6,6 +6,7 @@
   "scripts": {"dev":"node --watch index.js","start":"node index.js"},
   "dependencies": {
     "bcryptjs":"^3.0.2",
+    "cloudinary":"^2.7.0",
     "cors":"^2.8.5",
     "dotenv":"^17.2.3",
     "express":"^5.1.0",
