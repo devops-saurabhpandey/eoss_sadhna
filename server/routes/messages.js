@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Router } from "express";
 import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
@@ -16,7 +17,7 @@ router.get("/conversations", requireAuth, async (req, res) => {
     Conversation.find({ participants: req.user.id }).sort({ updatedAt: -1 })
   );
   const unreadRows = await Message.aggregate([
-    { $match: { conversation: { $in: conversations.map(c => c._id) }, sender: { $ne: new (await import("mongoose")).default.Types.ObjectId(req.user.id) }, readBy: { $ne: new (await import("mongoose")).default.Types.ObjectId(req.user.id) } } },
+    { $match: { conversation: { $in: conversations.map(c => c._id) }, sender: { $ne: new mongoose.Types.ObjectId(req.user.id) }, readBy: { $ne: new (await import("mongoose")).default.Types.ObjectId(req.user.id) } } },
     { $group: { _id: "$conversation", count: { $sum: 1 } } }
   ]);
   const counts = new Map(unreadRows.map(row => [row._id.toString(), row.count]));
