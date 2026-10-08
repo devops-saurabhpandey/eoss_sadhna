@@ -1,9 +1,11 @@
 import express from "express";
 import User from "../models/User.js";
+import Post from "../models/Post.js";
 import Notification from "../models/Notification.js";
 import { requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
+const publicUser = query => query.select("-passwordHash -savedPosts");
 
 router.get("/me", requireAuth, async (req, res) => {
   const user = await User.findById(req.user.id).select("-passwordHash");
@@ -22,25 +24,30 @@ router.patch("/me", requireAuth, async (req, res) => {
 });
 
 router.get("/discover", requireAuth, async (req, res) => {
-  const users = await User.find({ _id: { $ne: req.user.id } })
-    .select("-passwordHash")
-    .sort({ createdAt: -1 })
-    .limit(30);
+  const users = await publicUser(User.find({ _id: { $ne: req.user.id } }).sort({ createdAt: -1 }).limit(30));
   res.json(users);
 });
 
 router.get("/search", requireAuth, async (req, res) => {
   const q = String(req.query.q || "").trim();
   if (q.length < 2) return res.json([]);
-  const users = await User.find({
+  const users = await publicUser(User.find({
     _id: { $ne: req.user.id },
-    $or: [
-      { name: { $regex: q, $options: "i" } },
-      { bio: { $regex: q, $options: "i" } },
-      { email: { $regex: q, $options: "i" } }
-    ]
-  }).select("-passwordHash").limit(30);
+    $or: [{ name: { $regex: q, $options: "i" } }, { bio: { $regex: q, $options: "i" } }, { email: { $regex: q, $options: "i" } }]
+  }).limit(30));
   res.json(users);
+});
+
+router.get("/:id", requireAuth, async (req, res) => {
+  const user = await publicUser(User.findById(req.params.id));
+  if (!user) return res.status(404).json({ message: "User not found" });
+  const posts = await Post.find({ author: user._id }).populate("author", "name avatarUrl").sort({ createdAt: -1 }).limit(50);
+  const me = await User.findById(req.user.id).select("following");
+  res.json({
+    user,
+    posts,
+    isFollowing: me.following.some(id => id.toString() === user._id.toString())
+  });
 });
 
 router.post("/:id/follow", requireAuth, async (req, res) => {
