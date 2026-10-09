@@ -10,7 +10,8 @@ const userSchema = new mongoose.Schema({
   following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   savedPosts: [{ type: mongoose.Schema.Types.ObjectId, ref: "Post" }],
   blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-  role: { type: String, enum: ["admin", "manager", "employee"], default: "employee" }
+  role: { type: String, enum: ["admin", "manager", "employee"], default: "employee" },
+  moderationBlocked: { type: Boolean, default: false }
 }, { timestamps: true });
 
 export default mongoose.model("User", userSchema);
