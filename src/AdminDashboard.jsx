@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import AdminReportActions from "./AdminReportActions.jsx";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -32,7 +33,7 @@ export default function AdminDashboard({ auth }) {
           <div className="notification-copy">
             <b>{report.target?.name || "Unknown account"}</b>
             <small>Reported by {report.reporter?.name || "Unknown"} · {report.reason}</small>
-            <small>Status: {report.status} · {new Date(report.createdAt).toLocaleString()}</small>
+            <small>Status: {report.status} · {new Date(report.createdAt).toLocaleString()}</small><AdminReportActions report={report} auth={auth} onUpdated={updated => setReports(old => old.map(item => item._id === updated._id ? updated : item))} />
           </div>
         </article>)}
       </div> : <div className="panel empty">No reports to review.</div>}
